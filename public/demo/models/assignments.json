@@ -1,0 +1,89 @@
+{
+  "source": "https://github.com/KiCad/kicad-packages3D",
+  "license": "CC-BY-SA-4.0 with KiCad design exception",
+  "scope": "Visual-only package assignments for a synthetic example; recorded source and engineering checks are unchanged.",
+  "revisions": [
+    {
+      "revision": "b60d8522-e88a-4111-b69f-adfa1fdacf29",
+      "components": [
+        {
+          "reference": "J1",
+          "model": "PinHeader_1x06_P2.54mm_Vertical.wrl"
+        },
+        {
+          "reference": "J2",
+          "model": "PinHeader_1x06_P2.54mm_Vertical.wrl"
+        },
+        {
+          "reference": "U1",
+          "model": "SOIC-16W_7.5x10.3mm_P1.27mm.wrl"
+        },
+        {
+          "reference": "R1",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R2",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R3",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R4",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R5",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R6",
+          "model": "R_1206_3216Metric.wrl"
+        }
+      ]
+    },
+    {
+      "revision": "bf9e5ac3-dfc6-4d67-9d18-bc37aadd02d8",
+      "components": [
+        {
+          "reference": "J1",
+          "model": "PinHeader_1x06_P2.54mm_Vertical.wrl"
+        },
+        {
+          "reference": "J2",
+          "model": "PinHeader_1x06_P2.54mm_Vertical.wrl"
+        },
+        {
+          "reference": "U1",
+          "model": "SOIC-16W_7.5x10.3mm_P1.27mm.wrl"
+        },
+        {
+          "reference": "R1",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R2",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R3",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R4",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R5",
+          "model": "R_1206_3216Metric.wrl"
+        },
+        {
+          "reference": "R6",
+          "model": "R_1206_3216Metric.wrl"
+        }
+      ]
+    }
+  ]
+}

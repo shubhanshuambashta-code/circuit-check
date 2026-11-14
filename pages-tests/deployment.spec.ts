@@ -2,6 +2,7 @@ import {test,expect} from '@playwright/test';
 test('recorded website exposes revision changes, exact objects, coverage and local setup honestly',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('./');
+ await page.getByRole('button',{name:'Revision comparison',exact:true}).click();
  await expect(page.getByText('Interactive recorded example',{exact:true})).toBeVisible();
  await expect(page.locator('.r2-comparison-boards .board-svg')).toHaveCount(2);
  await expect(page.locator('.r2-comparison-scope')).toContainText('Comparable engineering checks');

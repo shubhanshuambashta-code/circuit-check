@@ -1,5 +1,5 @@
 export const demoMode=import.meta.env.MODE==='pages';
-export interface BoardObject {id:string;kind:string;shape:string;points:number[][];width?:number;radius?:number;layer?:string;net?:string;reference?:string;pad?:string;envelope?:boolean;signature:string}
+export interface BoardObject {id:string;kind:string;shape:string;points:number[][];width?:number;radius?:number;layer?:string;net?:string;reference?:string;value?:string;footprint?:string;manufacturer?:string;part_number?:string;models?:{path:string;hidden:boolean;available?:boolean}[];pad?:string;envelope?:boolean;signature:string}
 export interface Geometry {version:string;objects:BoardObject[];nets:string[];limitations:string[]}
 export interface Note {id:string;kind:string;body:string;revision_id:string;created:number;scope_valid:boolean}
 export interface Coverage {id:string;name:string;status:string;count:number|null;excluded_count?:number;message:string;basis?:string}

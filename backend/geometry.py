@@ -61,7 +61,9 @@ def board_index(text):
         item={'id':identifier,'kind':kind,'points':points,'layer':n.get('layer').arg() if n.get('layer') else None,
               'net':net_name(n),'width':number(n,'width') or 0, **extra}
         # Semantic signatures omit file formatting and UUID representation.
-        item['signature']=signature({k:v for k,v in item.items() if k!='id'})
+        # Presentation metadata is already covered by properties_signature for footprints.
+        # Exclude the new display fields so older saved reports remain comparable.
+        item['signature']=signature({k:v for k,v in item.items() if k not in ('id','footprint','manufacturer','part_number','models')})
         objects.append(item)
     for n in root.children:
         if n.tag in ('segment','arc'):
@@ -94,7 +96,10 @@ def board_index(text):
                         if p: extent.append(transform(p,at,angle))
             if extent:
                 x0=min(p[0] for p in extent);y0=min(p[1] for p in extent);x1=max(p[0] for p in extent);y1=max(p[1] for p in extent)
-                add(n,'component',[[x0,y0],[x1,y0],[x1,y1],[x0,y1]],shape='polygon',reference=ref,value=properties.get('Value'),angle=angle,envelope=True,
+                add(n,'component',[[x0,y0],[x1,y0],[x1,y1],[x0,y1]],shape='polygon',reference=ref,value=properties.get('Value') or next((x.arg(2) for x in n.all('fp_text') if x.arg()=='value'),None),angle=angle,envelope=True,
+                    footprint=n.arg(),manufacturer=properties.get('Manufacturer'),
+                    part_number=next((properties[k] for k in ('MPN','Manufacturer Part Number','Mfr Part Number') if properties.get(k)),None),
+                    models=[{'path':m.arg(),'hidden':any(c.value=='hide' for c in m.children) or bool(m.get('hide') and m.get('hide').arg(default='yes') in ('yes','true','1'))} for m in n.all('model') if isinstance(m.arg(),str)],
                     properties_signature=signature(tree(n)))
         elif n.tag in ('gr_line','gr_rect','gr_arc','gr_circle'):
             a=point(n,'start') or point(n,'center');z=point(n,'end')

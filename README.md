@@ -15,7 +15,7 @@ The **Circuit assistant** tab uses actual captured components, pin/net data, pro
 
 ## Repository history
 
-This repository contains the updated software from the local Circuit Check workspace. The [previous repository](https://github.com/shubhanshuambashta-code/circuitcheck) remains available for reference. This is a source snapshot, not a merge of the previous repository's Git history.
+This repository combines the Circuit Check app, assistant and simulator extension with interactive 3D review, component models and identifiers, severity visibility controls, linked revision cameras and axis navigation. Both development histories are preserved in the merge.
 
 ## Project layout
 
@@ -112,6 +112,8 @@ sh scripts/setup.sh
 Linux/macOS startup scripts are supplied but were not executed here. Do not copy the Windows CLI path from `.env.example` on Linux.
 
 ## GitHub Pages preview
+
+The frontend now adapts the MIT-licensed Halyard template by Kedhareswer Naidu, retaining its steel/cobalt sky, orbital signals, scroll transitions and product tilt around the existing working review interface. See [template source and licence details](TEMPLATE-NOTICE.md). The local API, native analysis pipeline and Pages recording adapter are unchanged. Run `npm run dev` for the redesigned development interface; the API and worker still need to run as described below.
 
 The published site provides an interactive replay of two real native KiCad runs on an original synthetic fixture, with object highlighting, revision comparisons, coverage, review history and downloadable native project versions. Its persistent banner identifies recorded results. GitHub Pages cannot execute FastAPI, SQLite jobs or native KiCad; live uploads, notes and approved edits require the local application.
 

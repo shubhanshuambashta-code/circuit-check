@@ -78,6 +78,18 @@ class KiCad:
             self.helps[key]=out
         return self.helps[key]
 
+    def pcb_model(self, source: Path, out: Path):
+        help = self.help(['pcb', 'export', 'glb'])
+        args = [self.exe, 'pcb', 'export', 'glb', '--output', out]
+        for flag in ('--subst-models', '--include-tracks', '--include-pads', '--include-silkscreen', '--include-soldermask'):
+            if flag in help:
+                args.append(flag)
+        code, log = run([*args, source], source.parent, out.with_suffix('.log'))
+        if code or not out.is_file() or out.read_bytes()[:4] != b'glTF':
+            raise EngineError('Native 3D export unavailable. ' + log[-700:])
+        return {'artifact': out.name, 'kind': '3d', 'file': source.name, 'view_box': [],
+                'message': 'Native KiCad model. Only assigned, resolvable component models are included; missing models are not invented.'}
+
     def report(self,source: Path,kind: str,out: Path,parity=False):
         cmd=['pcb','drc'] if kind=='DRC' else ['sch','erc']
         help=self.help(cmd)
@@ -257,7 +269,7 @@ def analyze(source:Path,artifacts:Path,manifest,progress=lambda _:None):
     engine=KiCad(artifacts)
     before=fingerprint(source)
     rules=hashlib.sha256(b''.join(p.read_bytes() for p in sorted(source.rglob('*')) if p.suffix in ('.kicad_pro','.kicad_dru'))).hexdigest()
-    key=hashlib.sha256(json.dumps([before,rules,engine.version,manifest['root'],manifest.get('rule_profile'),ADAPTER_VERSION,NORMALIZER_VERSION,'geometry-v1;schematic-sheets-v1;refill-zones;all-severities;full-page-svg-v2'],sort_keys=True).encode()).hexdigest()
+    key=hashlib.sha256(json.dumps([before,rules,engine.version,manifest['root'],manifest.get('rule_profile'),ADAPTER_VERSION,NORMALIZER_VERSION,'geometry-v1;schematic-sheets-v1;refill-zones;all-severities;full-page-svg-v2;glb-v1;component-metadata-v2'],sort_keys=True).encode()).hexdigest()
     cache=artifacts/'result.json'
     if cache.exists():
         cached=json.loads(cache.read_text())
@@ -300,12 +312,28 @@ def analyze(source:Path,artifacts:Path,manifest,progress=lambda _:None):
                     previews.append(preview)
                 checks.append({'name':'Schematic preview & netlist','status':'completed','message':'SVG sheets and native connectivity exported.'})
         except EngineError as e: checks.append({'name':f'{kind} exports','status':'failed','message':str(e)})
+    if pcb.exists():
+        progress('Exporting native 3D model')
+        try:
+            previews.append(engine.pcb_model(pcb, artifacts/'board.glb'))
+        except EngineError as e:
+            manifest = {**manifest, 'notices': [*manifest['notices'], {'kind': '3d_preview', 'message': str(e)}]}
     if not pcb.exists() or not sch.exists() or dependencies_missing:
         checks.append({'name':'Schematic / PCB parity','status':'skipped','message':'Requires a matching complete schematic and board with project dependencies.'})
     else: checks.append({'name':'Schematic / PCB parity','status':'completed' if next((c['status']=='completed' for c in checks if c['name']=='DRC'),False) else 'failed','message':'Included in PCB DRC.'})
     if pcb.exists():
         try:geometry=board_index(pcb.read_text(encoding='utf-8-sig'))
         except (ValueError,TypeError,ArithmeticError) as e:checks.append({'name':'Object geometry','status':'failed','message':'Exact object mapping unavailable: '+str(e)})
+        for component in geometry['objects']:
+            for model in component.get('models', []):
+                relative=model['path'].replace('${KIPRJMOD}', str(pcb.parent))
+                if '${' in relative:continue  # Installed-library resolution belongs to KiCad.
+                try:
+                    candidate=(pcb.parent/relative).resolve()
+                    if source.resolve() in candidate.parents:
+                        model['available']=candidate.is_file()
+                except (OSError,ValueError):
+                    pass  # Invalid model references do not suppress electrical findings.
         native_python=Path(engine.exe).parent/('python.exe' if os.name=='nt' else 'python3')
         if native_python.is_file():
             try:
@@ -319,7 +347,7 @@ def analyze(source:Path,artifacts:Path,manifest,progress=lambda _:None):
                         untracked+=1;continue
                     prior=index.get(item['id'],{})
                     merged={**prior,**item}
-                    merged['signature']=signature({k:v for k,v in merged.items() if k not in ('id','signature')})
+                    merged['signature']=signature({k:v for k,v in merged.items() if k not in ('id','signature','footprint','manufacturer','part_number','models')})
                     index[item['id']]=merged
                 geometry['objects']=list(index.values())
                 geometry['native_engine']=native['engine']

@@ -1,4 +1,4 @@
-import {useEffect,useId,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useId,useRef,useState} from 'react';
 import {Maximize,Minus,Plus,MousePointer2,Hand,Layers,Eye,EyeOff,Crosshair,FileUp,LoaderCircle,CircuitBoard} from 'lucide-react';
 import {artifactUrl,type Preview,type Finding,type Geometry,type BoardObject} from './api';
 
@@ -16,10 +16,10 @@ export default function Viewer({pid,rid,preview,finding,busy,onUpload,onSample,o
  const view=[full[0]+full[2]*(1-1/zoom)/2+pan[0],full[1]+full[3]*(1-1/zoom)/2+pan[1],full[2]/zoom,full[3]/zoom];
  const matches=(f:Finding)=>preview?.kind==='schematic'?f.source==='KiCad ERC'&&(f.schematic_preview?f.schematic_preview===preview.artifact:f.sheet_uuid?f.sheet_uuid===preview.sheet_uuid:f.file===preview.file&&f.sheet===preview.sheet_path):f.file===preview?.file&&f.source!=='KiCad ERC';
  const fit=()=>{setZoom(1);setPan([0,0])};
- useEffect(()=>{fit();setVisible({});setLayers(false)},[resetKey]);
+ useLayoutEffect(()=>{fit();setVisible({});setLayers(false)},[resetKey]);
  useEffect(()=>{const f=(e:KeyboardEvent)=>{if((e.target as HTMLElement).matches('input,textarea'))return;if(e.key.toLowerCase()==='f')fit()};window.addEventListener('keydown',f);return()=>window.removeEventListener('keydown',f)},[]);
  function focus(){if(!map)return;const pts=focusPoints?.length?focusPoints:highlighted.flatMap(o=>o.points);if(pts.length){const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);const x=(Math.min(...xs)+Math.max(...xs))/2,y=(Math.min(...ys)+Math.max(...ys))/2;const extent=Math.max((Math.max(...xs)-Math.min(...xs))*map.scale_x/full[2],(Math.max(...ys)-Math.min(...ys))*map.scale_y/full[3]);setZoom(Math.max(1,Math.min(5,.55/Math.max(.1,extent))));setPan([x*map.scale_x+map.offset_x-(full[0]+full[2]/2),y*map.scale_y+map.offset_y-(full[1]+full[3]/2)])}else if(finding?.position&&matches(finding)){setZoom(2.4);setPan([finding.position.x*map.scale_x+map.offset_x-(full[0]+full[2]/2),finding.position.y*map.scale_y+map.offset_y-(full[1]+full[3]/2)])}}
- useEffect(()=>{if(finding||highlightIds?.length||focusPoints?.length)focus()},[finding?.id,highlightIds?.join(','),preview?.artifact,focusPoints?.flat().join(',')]);
+ useLayoutEffect(()=>{if(finding||highlightIds?.length||focusPoints?.length)focus()},[finding?.id,highlightIds?.join(','),preview?.artifact,focusPoints?.flat().join(',')]);
  useEffect(()=>{if(!layers)return;const close=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();setLayers(false);layerButton.current?.focus()}};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close)},[layers]);
  const layerFiles=(preview as Preview&{layers?:{name:string;artifact:string}[]})?.layers;
  return <div className="viewer-shell">
