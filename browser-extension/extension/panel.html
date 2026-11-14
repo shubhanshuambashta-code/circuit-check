@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Circuit Check — Multi-platform</title><link rel="stylesheet" href="panel.css"><link rel="stylesheet" href="workspace.css"></head>
+<body>
+  <header><div class="brandmark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 8h9l4 8-4 8H5M18 8h9M18 24h9M5 16h7"/><circle cx="5" cy="8" r="2"/><circle cx="27" cy="8" r="2"/><circle cx="27" cy="24" r="2"/></svg></div><div><h1>Circuit Check <span id="platform-name">Multi-platform</span></h1><p>Your circuit review workspace.</p></div><span class="version">v0.6.4</span></header>
+  <main>
+    <section class="connection"><div class="eyebrow"><span id="dot" class="dot"></span><span id="connection">READY TO CONNECT</span></div><h2 id="project">Your circuit, checked.</h2><p id="status" role="status" aria-live="polite">Open a Tinkercad or Wokwi circuit to begin.</p><div class="actions"><button id="check" class="primary">Check circuit <span aria-hidden="true">↗</span></button><button id="pause" disabled>Pause live checks</button></div><p id="updated" class="small">Reviews are stored on this device.</p></section>
+    <section class="subtle-box"><label class="field">Local project name<input id="local-project" value="My Wokwi project" maxlength="160"></label><label class="file-button">Open diagram.json<input id="import-diagram" type="file" accept=".json,application/json"></label><p class="small muted">You can also paste diagram.json below. File checks stay paused until you choose Check circuit.</p><details><summary>Paste a diagram</summary><label class="field">Wokwi diagram.json<textarea id="diagram-text" rows="7" maxlength="2097152"></textarea></label><button id="check-paste">Check pasted diagram</button></details></section><section class="subtle-box"><h2>Import a simulator circuit</h2><label class="field">Software<select id="native-platform"><option value="ltspice">LTspice — SPICE .cir / .net</option><option value="proteus">Proteus — flat SDF or SPICE netlist</option><option value="simulide">SimulIDE — .sim1 / .simu XML</option><option value="falstad">Falstad / CircuitJS — exported text / XML</option><option value="circuitlab">CircuitLab — saved Circuit Check capture</option><option value="simduino">SimDuino — snapshot / diagram JSON</option></select></label><label class="field">Project name<input id="native-name" maxlength="120" placeholder="Use the same name for updated revisions"></label><label class="file-button">Open circuit file<input id="native-file" type="file" accept=".cir,.net,.sp,.sdf,.sim1,.simu,.txt,.json,.xml"></label><details><summary>Paste circuit text</summary><label class="field">Circuit text<textarea id="native-text" rows="7"></textarea></label><button id="native-check">Check imported circuit</button></details><p class="small muted">Desktop applications use exported files. CircuitLab uses a limited live geometry reader; review its coverage. Binary Proteus project files and LTspice .asc schematics must be exported as a supported netlist first.</p></section><label class="check-row"><input id="compatible-site" type="checkbox"> Try compatible SimDuino / CircuitJS readers on another site when I click Check circuit</label><p id="notice" role="status" aria-live="polite"></p>
+    <section class="subtle-box correction-box" aria-labelledby="correction-heading">
+      <h2 id="correction-heading">Correct circuit</h2>
+      <p id="correction-status" role="status">Connect a circuit to prepare corrections.</p>
+      <p id="correction-scope" class="small muted">Preview supported fixes, repair the remaining connections, and recheck every supported rule.</p>
+      <button id="correct-circuit" class="primary" disabled>Preview corrections</button>
+      <button id="open-designer" disabled>Open visual workspace</button>
+      <p class="small muted">See the full project beside an editable proposal. Revise wires, replace parts, move diagram components and download an annotated figure.</p>
+    </section>
+    <section aria-label="Circuit overview" class="metrics"><div><strong id="parts">—</strong><span>components</span></div><div><strong id="nets">—</strong><span>nets</span></div><div><strong id="issues">—</strong><span>findings</span></div></section>
+    <nav class="workspace-tabs" role="tablist" aria-label="Review workspace">
+      <button id="tab-findings" role="tab" aria-selected="true" aria-controls="view-findings" data-view="findings">Findings</button>
+      <button id="tab-circuit" role="tab" aria-selected="false" aria-controls="view-circuit" data-view="circuit" tabindex="-1">Circuit</button>
+      <button id="tab-reviews" role="tab" aria-selected="false" aria-controls="view-reviews" data-view="reviews" tabindex="-1">Reviews</button>
+      <button id="tab-rules" role="tab" aria-selected="false" aria-controls="view-rules" data-view="rules" tabindex="-1">Rules</button>
+      <button id="tab-coverage" role="tab" aria-selected="false" aria-controls="view-coverage" data-view="coverage" tabindex="-1">Coverage</button>
+    </nav>
+    <section id="view-findings" role="tabpanel" aria-labelledby="tab-findings">
+      <div class="section-head"><h2>What needs attention</h2><button id="save-review" class="text-button" disabled>Save review</button></div>
+      <div class="filters" role="group" aria-label="Filter findings"><button data-filter="all" aria-pressed="true">All <span id="all-count">0</span></button><button data-filter="error" aria-pressed="false">Errors <span id="error-count">0</span></button><button data-filter="warning" aria-pressed="false">Warnings <span id="warning-count">0</span></button></div>
+      <label class="field">Search findings<input id="search" type="search" placeholder="Component, pin, rule or evidence"></label>
+      <label class="field compact">Review state<select id="review-filter"><option value="all">All review states</option><option value="open">Open</option><option value="accepted_exception">Accepted exceptions</option><option value="reviewed">Reviewed</option><option value="needs_review">Evidence changed · re-review</option></select></label>
+      <div id="results"><div class="empty"><h3>A second pair of eyes.</h3><p>Connect a circuit to review findings, inspect evidence and keep a review history.</p></div></div>
+    </section>
+    <section id="view-circuit" role="tabpanel" aria-labelledby="tab-circuit" hidden>
+      <div class="page-intro"><h2>Follow the connections.</h2><p>Inspect actual component pins and electrical nets. Highlighting outlines visible components; wire routes are not reconstructed.</p></div>
+      <label class="field">Find a component<input id="component-search" type="search" placeholder="Reference, type or model"></label><div id="components"></div>
+    </section>
+    <section id="view-reviews" role="tabpanel" aria-labelledby="tab-reviews" hidden>
+      <div class="page-intro"><h2>Keep the evidence.</h2><p>Save named snapshots, compare revisions, and retain comments and exceptions. Loading a saved review does not change the source project.</p></div>
+      <div class="button-row"><button id="save-review-2" class="primary" disabled>Save current review</button><button id="export" disabled>Export JSON</button><button id="export-source" disabled>Export source circuit</button><button id="export-html" disabled>Export HTML</button></div>
+      <label class="field">Compare current result with<select id="baseline"><option value="">Choose a saved review</option></select></label>
+      <div id="comparison" class="subtle-box">Save a review before making changes, then choose it as the comparison baseline.</div>
+      <h3 class="subheading">Saved review library</h3><div id="saved-reviews"></div>
+      <div class="button-row"><button id="export-library">Export library</button><label class="file-button">Import library<input id="import-library" type="file" accept=".json,application/json"></label></div>
+      <p class="small muted">Up to 60 reviews / 8 MB. Reviews are stored in this browser profile. Export the library before removing the extension.</p>
+      <h3 class="subheading">Approved changes</h3><div id="repair-history"></div><button id="undo-repair" disabled>Restore last Tinkercad resistor value</button>
+    </section>
+    <section id="view-rules" role="tabpanel" aria-labelledby="tab-rules" hidden>
+      <div class="page-intro"><h2>Define the review.</h2><p>Profiles control supported electrical checks. A custom threshold records your requirement; it is not a manufacturer specification.</p></div>
+      <form id="profile-form">
+        <label class="field">Profile name<input id="profile-name" required maxlength="1200"></label>
+        <label class="field">Profile version<input id="profile-version" maxlength="1200"></label>
+        <label class="field">Rule source or project requirement<input id="profile-source" maxlength="1200"></label>
+        <fieldset id="rule-switches"><legend>Enabled checks</legend></fieldset>
+        <label class="field">Minimum LED series resistance (Ω)<input id="profile-minimum" type="number" min="0.000001" max="1000000000" step="any" placeholder="Not specified"></label>
+        <p class="small muted">Applied only to proven simple LED supply paths. Select a value appropriate to your circuit; the extension does not derive it from a datasheet.</p><button type="submit" class="primary">Apply profile & recheck</button>
+      </form>
+      <div class="button-row"><button id="profile-reset">Use standard profile</button><button id="export-profile">Export profile</button><label class="file-button">Import profile<input id="import-profile" type="file" accept=".json,application/json"></label></div>
+    </section>
+    <section id="view-coverage" role="tabpanel" aria-labelledby="tab-coverage" hidden>
+      <div class="page-intro"><h2>Know what was checked.</h2><p>Coverage belongs to this result and profile. No overall safety score is inferred.</p></div><div id="coverage"></div>
+      <details class="coverage"><summary>Source hashes and engine versions</summary><pre id="provenance">No result yet.</pre></details>
+      <div class="subtle-box"><h3>Native CircuitCheck tools</h3><p>KiCad uploads, PCB geometry, fabrication profiles, track-width repair and configured AI explanations require the local CircuitCheck application and native project files. These native tools are separate from browser circuit checks.</p><button id="native-app">Open local CircuitCheck</button><p class="small muted">Start the local application first. This opens its existing workspace at 127.0.0.1:8000.</p></div>
+    </section>
+    <footer>Independent extension · Not affiliated with Autodesk or Wokwi.<br>Local review storage · No cloud uploads.</footer>
+  </main>
+  <dialog id="review-dialog" aria-labelledby="dialog-title"><div class="dialog-heading"><h2 id="dialog-title">Review</h2><button id="dialog-close" aria-label="Close dialog">×</button></div><div id="dialog-body"></div></dialog>
+  <script type="module" src="panel.js"></script>
+</body></html>

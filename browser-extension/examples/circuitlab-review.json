@@ -1,0 +1,28 @@
+{
+  "format": "circuitlab-capture",
+  "rows": [
+    {
+      "id": "r",
+      "data": {
+        "type": "edge",
+        "circuit_elm": "SimResistor",
+        "params": {
+          "name": "R1",
+          "R": "0"
+        }
+      },
+      "pins": [
+        {
+          "name": "a",
+          "x": 0,
+          "y": 0
+        },
+        {
+          "name": "b",
+          "x": 10,
+          "y": 0
+        }
+      ]
+    }
+  ]
+}

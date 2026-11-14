@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Circuit Check Multi-platform",
+  "version": "0.6.4",
+  "minimum_chrome_version": "116",
+  "description": "Review live browser circuits and imported simulator netlists in one local visual workspace.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.tinkercad.com/*",
+    "https://tinkercad.com/*",
+    "https://editor.tinkercad.com/*",
+    "https://wokwi.com/*",
+    "https://simduino.com/*",
+    "https://www.simduino.com/*",
+    "https://falstad.com/*",
+    "https://www.falstad.com/*",
+    "https://lushprojects.com/*",
+    "https://www.lushprojects.com/*",
+    "https://www.circuitlab.com/*",
+    "https://circuitlab.com/*"
+  ],
+  "background": {
+    "service_worker": "extension/background.js"
+  },
+  "action": {
+    "default_title": "Circuit Check Multi-platform"
+  },
+  "side_panel": {
+    "default_path": "extension/panel.html"
+  },
+  "icons": {
+    "16": "extension/icons/16.png",
+    "32": "extension/icons/32.png",
+    "48": "extension/icons/48.png",
+    "128": "extension/icons/128.png"
+  },
+  "options_ui": {
+    "page": "extension/panel.html",
+    "open_in_tab": true
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "author": "Circuit Check GPIO regression example",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "left": 0,
+      "top": 0,
+      "attrs": {}
+    },
+    {
+      "id": "led",
+      "type": "wokwi-led",
+      "left": 320,
+      "top": 0,
+      "attrs": {
+        "color": "red"
+      }
+    },
+    {
+      "id": "r",
+      "type": "wokwi-resistor",
+      "left": 260,
+      "top": 0,
+      "attrs": {
+        "value": "220"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "uno:8",
+      "r:1",
+      "red",
+      []
+    ],
+    [
+      "r:2",
+      "led:A",
+      "green",
+      []
+    ],
+    [
+      "led:C",
+      "uno:GND.1",
+      "black",
+      []
+    ]
+  ]
+}

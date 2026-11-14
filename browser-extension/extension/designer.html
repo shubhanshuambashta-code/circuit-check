@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Visual repair · Circuit Check</title><link rel="stylesheet" href="designer.css"></head>
+<body>
+  <a href="#workspace" class="skip">Skip to circuit diagrams</a>
+  <header class="topbar"><div class="brand"><span class="brand-icon" aria-hidden="true">CC</span><div><p class="eyebrow">CIRCUIT CHECK · TINKERCAD + WOKWI <span id="version"></span></p><h1>Visual repair workspace</h1></div></div><div class="project-meta"><strong id="project-name">Opening your project…</strong><span id="save-state" role="status">Local draft</span></div></header>
+  <div id="notice" role="status" aria-live="polite"></div>
+  <div class="scope-strip"><strong>Your full project. A separate draft.</strong><span>The figures show electrical connections and diagram positions. Breadboard hole placement and simulation are not reproduced. The source project stays unchanged.</span></div>
+  <main class="app">
+    <aside class="sidebar" aria-label="Repair controls">
+      <section class="control-card"><h2>Generate improvements</h2><p>Keep the entire project and propose supported changes. Uncertain repairs remain annotated.</p>
+        <label>Project purpose <textarea id="goal" maxlength="2000" rows="3" placeholder="Keep a note of what this project should do."></textarea></label>
+        <p class="hint">Context for your review; a purpose note alone does not establish an expected wiring diagram.</p>
+        <label>Chosen current-limiting resistance (Ω)<input id="suggested-resistance" type="number" min="0.000001" max="1000000000" step="any" placeholder="Optional; choose for your supply and load"></label>
+        <label class="check"><input type="checkbox" id="forward-led"> LEDs are intended to operate in forward bias</label>
+        <label class="check"><input type="checkbox" id="arrange-parts" checked> Arrange the connection diagram for readability</label>
+        <button id="improve" class="primary">Generate repair diagram</button><p class="hint">Can reverse proven LED connections, add missing LED resistors, replace zero/negative resistor values and meet configured LED resistance minimums. Other parts are preserved.</p>
+      </section>
+      <section class="control-card"><h2>Inspect and edit any part</h2><label>Find a component<input id="part-search" type="search" placeholder="Name, type, pin or model"></label><label>Selected component<select id="selected-part"></select></label><p id="part-info" class="hint"></p>
+        <form id="placement-form"><div class="pair"><label>Diagram X<input id="position-x" type="number" min="30" max="1000000" step="any" required></label><label>Diagram Y<input id="position-y" type="number" min="30" max="1000000" step="any" required></label></div><button type="submit">Move selected part</button></form>
+        <form id="resistance-form" hidden><label>Resistance (Ω)<input id="part-resistance" type="number" min="0.000001" max="1000000000" step="any" required></label><button type="submit">Update draft value</button></form>
+        <details open><summary>Correct pin connections</summary><form id="connection-form"><label>Move this pin<select id="source-pin"></select></label><label>To the net of this part<select id="target-part"></select></label><label>Target pin<select id="target-pin"></select></label><button type="submit">Reconnect pin in draft</button></form><button id="disconnect">Disconnect selected pin</button><p class="hint">Moves this pin to the target net. Other members of the old net stay connected to each other.</p><div id="pin-memberships"></div></details>
+        <details><summary>Replace the wrong component</summary><form id="replace-form"><label>Replacement type<select id="replacement-type"></select></label><div id="pin-mapping"></div><label id="replacement-r-label">New resistance (Ω)<input id="replacement-resistance" type="number" min="0.000001" max="1000000000" step="any"></label><button type="submit">Replace part in draft</button></form><p class="hint">Choose the intended type and review every pin mapping. Unmapped pins become unconnected. Part ratings are not inferred.</p></details>
+        <button id="remove-part" class="danger">Remove selected part from draft</button>
+      </section>
+      <section class="control-card"><h2>Add a missing component</h2><form id="add-form"><label>Component type<select id="add-type"></select></label><label id="add-r-label">Resistance (Ω)<input id="add-resistance" type="number" min="0.000001" max="1000000000" step="any"></label><button type="submit">Add to draft</button></form><p class="hint">Includes project component types and basic parts. Connect the new pins in the inspector.</p></section>
+      <section class="control-card"><h2>Source and coverage</h2><p id="source-info" class="hint"></p><button id="load-latest" hidden>Start draft from newer captured source</button><button id="reset">Reset to captured original</button><details><summary>What this workspace can verify</summary><p id="limits" class="hint"></p><pre id="source-hash"></pre></details></section>
+    </aside>
+    <section id="workspace" class="workspace" aria-label="Original and proposed circuit">
+      <div class="workspace-toolbar"><div class="button-group"><button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button><button id="arrange">Arrange diagram</button></div><div class="button-group"><button id="focus-part">Focus selected</button><button id="fit">Fit all parts</button><button id="zoom-in" aria-label="Zoom in both diagrams">Zoom +</button><button id="zoom-out" aria-label="Zoom out both diagrams">Zoom −</button></div></div>
+      <div class="compare-grid">
+        <section class="diagram-card"><div class="diagram-heading"><div><span class="eyebrow">CAPTURED ORIGINAL</span><h2>What you built</h2></div><span id="before-count" class="count"></span></div><div id="before-diagram" class="diagram" tabindex="0" aria-label="Original circuit diagram"></div><p class="diagram-caption">Actual captured pins and nets. Component icons are schematic representations.</p></section>
+        <section class="diagram-card proposed"><div class="diagram-heading"><div><span class="eyebrow">EDITABLE PROPOSAL</span><h2>How it could connect</h2></div><span id="after-count" class="count"></span></div><div id="after-diagram" class="diagram" tabindex="0" aria-label="Proposed circuit diagram"></div><p class="diagram-caption">Select or drag a part. Arrow keys move a focused part; Shift moves farther. Pins and nets are editable in the inspector.</p></section>
+      </div>
+      <div class="legend"><span><i class="original-key"></i>Existing connection</span><span><i class="changed-key"></i>Revised connection or part</span><span><i class="added-key"></i>Added component</span><span><i class="fault-key"></i>Still needs review</span><span>Crossings connect only at a shared named net.</span></div>
+      <section class="result-card"><div class="result-heading"><div><span class="eyebrow">RECHECKED DRAFT</span><h2 id="result-summary">Loading connections…</h2></div><span class="draft-pill">Not simulated</span></div><p id="result-scope"></p><p id="native-pending"></p><div class="export-row"><button id="export-svg" class="primary">Download figure (SVG)</button><button id="export-png">Download image (PNG)</button><button id="export-wokwi" class="primary">Export Wokwi diagram.json</button><button id="export-json">Export draft JSON</button><button id="export-guide">Export connection guide</button><button id="save-now">Save locally</button></div></section>
+      <section class="details-grid"><div class="result-card"><h2>Changes shown in the figure</h2><div id="changes"></div></div><div class="result-card"><h2>Still needs a decision</h2><p class="hint">These findings have not been automatically resolved. Choose a part to inspect its pins and revise the draft.</p><div id="unresolved"></div></div></section>
+      <section class="result-card"><div class="result-heading"><h2>Which parts connect together</h2><label class="net-search">Search nets and pins<input id="net-search" type="search" placeholder="Part name, pin or net"></label></div><div id="net-guide"></div></section>
+    </section>
+  </main><script type="module" src="designer.js"></script>
+</body></html>
