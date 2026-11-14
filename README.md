@@ -91,7 +91,7 @@ Clone or download this repository, open a terminal in its root, then follow the 
 Tested host: Windows x64, Python **3.14.6**, Node **24.21.0**, npm **11.19.0**, KiCad **10.0.7**. Direct Python dependencies are pinned in `requirements.txt`; the tested full dependency set is in `requirements.lock.txt`. Frontend dependencies are pinned in `package.json` and `package-lock.json`.
 
 1. Install Python 3.12 or later and Node 22.12 or later. Only the versions above were executed on this host.
-2. Install **KiCad 10.0.7** from [the official Windows download page](https://www.kicad.org/download/windows/) or [official Linux instructions](https://www.kicad.org/download/linux/). Website visitors use the server's engine; they do not need KiCad on their own devices.
+2. Install **KiCad 10.0.7** from [the official Windows download page](https://www.kicad.org/download/windows/) or [official Linux instructions](https://www.kicad.org/download/linux/). The recorded website preview needs no local KiCad; checking your own uploaded circuit requires the local engine.
 3. In this folder, run:
 
 ```powershell
@@ -189,9 +189,9 @@ A project settings file alone cannot be analyzed. Photographs, PDFs, mechanical 
 
 ## Optional assistant
 
-Set `AI_API_KEY`, `AI_BASE_URL` and `AI_MODEL` server-side. The adapter accepts an OpenAI-compatible `/chat/completions` endpoint with strict JSON-schema output. The default example model is `gpt-4.1-mini`; choose a model/provider that supports the same response format. See [official Structured Outputs documentation](https://developers.openai.com/api/docs/guides/structured-outputs).
+Use **Circuit assistant → Connect Groq** in the local app, or configure `GROQ_API_KEY` server-side. The legacy `AI_API_KEY`, `AI_BASE_URL` and `AI_MODEL` settings remain available for a compatible backend that supports strict JSON-schema output. See the full circuit-aware assistant section below for context selection, storage and limitations.
 
-Only the selected finding's evidence, rule, affected objects, known repair, identifiers and the user's question are sent. Entire project files and credentials are not sent. Network/provider failures, refusals, unknown references, schema failures and added numerical claims fall back to deterministic source evidence. No live paid model call was executed on this host because no key was configured. Validation and fallback behavior are tested.
+A bounded selection of actual components, pin/net connections, project rules, KiCad reports, coverage, the question and matching prior conversation is sent to the configured provider. The context inspector shows included evidence and omissions. Credentials are used only to authenticate the provider request. Network/provider failures or rejected responses fall back to clearly labelled evidence-only explanations. No live model completion was executed on this host because no key was configured; provider behavior was tested with controlled responses.
 
 ## Storage, limits and deployment
 
@@ -243,7 +243,7 @@ Original application code is licensed under the [MIT License](LICENSE). Original
 
 ## Local generated schematics
 
-Open **Generate schematic** in the local app. A PCB-only project can generate a net-labelled SVG from its captured pad net assignments after checks. Alternatively, import Wokwi diagram.json, a Circuit Check JSON review (including Tinkercad extension exports), or an exported generated netlist. Download SVG for the drawing and JSON for full pin/net connections. This feature runs locally in the browser and leaves original files unchanged.
+Open **Automatic schematic** in the local app. It draws from the current circuit's available component and connection data, including open pins, without a separate import or Generate action. Download SVG for the drawing and JSON for the captured pin/net connections. Optional imports are available for other saved circuit files. This feature runs locally in the browser and leaves original files unchanged.
 
 Note: a generated schematic reconstructs available connectivity; it does not recover the original schematic or establish symbol pin roles, component ratings, firmware behavior or whole-circuit correctness. PCB pad-net assignments express intended connectivity even when tracks are missing. Unsupported/internal simulator connections and unrecorded pins need review. Original schematics remain available through the existing native Schematic view. Images and PDFs cannot be used as electrical netlists.
 
