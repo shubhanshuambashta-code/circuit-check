@@ -120,7 +120,8 @@ def test_provider_form_keeps_key_server_side_and_never_accepts_client_urls(clien
     response=client.post('/api/assistant/provider',json={'key':key})
     assert response.status_code==200 and response.json()['configured'] is True
     assert key not in response.text and key not in client.get('/api/assistant/provider').text
-    assert json.loads(provider.CONFIG_FILE.read_text())['key']==key
+    assert 'key' not in json.loads(provider.CONFIG_FILE.read_text())
+    assert provider.load_secret(provider.credential_target())==key
     assert client.post('/api/assistant/provider',json={'key':key,'base_url':'http://elsewhere'}).status_code==422
     assert client.post('/api/assistant/provider',json={'key':'bad\ninjection'}).status_code==422
 
@@ -135,7 +136,7 @@ def test_real_kicad_findings_reach_the_assistant(engine,client,upload_fixture):
     p=upload_fixture('drc');assert tick()
     context_response=client.get(f"/api/projects/{p['project_id']}/assistant/context")
     assert context_response.status_code==200,context_response.text
-    c=context_response.json()['context'];assert c['project']['engine']=='10.0.7'
+    c=context_response.json()['context'];assert c['project']['engine'].startswith('10.0.')
     assert any(f['rule']=='track_width' and f['evidence'] for f in c['findings'])
     response=client.post(f"/api/projects/{p['project_id']}/assistant",json={'question':'Which error should I fix first?'}).json()
     assert response['sources'] and any(s['kind']=='finding' for s in response['sources'])

@@ -73,7 +73,20 @@ def unpack(files: list[tuple[str,bytes]], directory: Path):
 def inspect(directory: Path, selected: str | None = None):
     paths=sorted(p.relative_to(directory).as_posix() for p in directory.rglob('*') if p.is_file())
     designs=[p for p in paths if Path(p).suffix in ('.kicad_pcb','.kicad_sch')]
-    if not designs: raise ValueError('No KiCad board or schematic found. A project settings file alone cannot be checked.')
+    if not designs:
+        from .captured import read_capture
+        captures={}
+        for name in paths:
+            if not name.lower().endswith('.json'):continue
+            try:read_capture(directory/name)
+            except ValueError:continue
+            captures[str(Path(name).with_suffix(''))]=name
+        if not captures:raise ValueError('No KiCad board or schematic found, and no supported schema:1 Circuit Check capture was found. A project settings file alone cannot be checked.')
+        stems=sorted(captures)
+        if selected and selected not in stems:raise ValueError('Unknown captured circuit root')
+        root=selected or (stems[0] if len(stems)==1 else None)
+        return {'files':[{'path':f,'size':(directory/f).stat().st_size,'kind':'captured circuit' if f in captures.values() else Path(f).suffix.lstrip('.')} for f in paths],
+                'root':root,'candidates':stems,'requires_selection':root is None,'notices':[],'source_format':'circuitcheck-capture','capture_path':captures.get(root)}
     notices=[]
     referenced=set()
     for f in [x for x in designs if x.endswith('.kicad_sch')]:

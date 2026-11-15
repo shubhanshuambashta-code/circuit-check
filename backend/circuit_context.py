@@ -32,6 +32,14 @@ def circuit_components(source,artifacts,manifest):
     notes=[];root=manifest.get('root')
     if manifest.get('requires_selection') or not root:
         return [],['Select the project root before inferring circuit connectivity.']
+    if manifest.get('source_format')=='circuitcheck-capture':
+        from .captured import read_capture
+        capture=read_capture(source.joinpath(*safe_path(manifest['capture_path']).parts))
+        components=[]
+        for component in capture['components']:
+            if any(not isinstance(pin,dict) for pin in component['terminals']):raise ValueError('Malformed captured pin records; no connectivity is inferred.')
+            components.append({**component,'label':component.get('label') or 'Unnamed component','model':component.get('model') or 'captured-component','terminals':[{**pin,'name':pin.get('name') or 'Unnamed pin'} for pin in component['terminals']]})
+        return components,['Preserved captured JSON; missing roles, ratings and connectivity are not inferred. Unassigned/unknown net counts do not establish physical open circuits.']
     base=source.resolve()
     def design(suffix):
         relative=safe_path(root+suffix);path=source.joinpath(*relative.parts).resolve()

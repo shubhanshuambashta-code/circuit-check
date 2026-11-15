@@ -1,285 +1,137 @@
-# Circuit Check
+# CircuitCheck
 
-Circuit Check combines a local circuit review app, website preview and browser extension. It explains supported wiring and PCB design issues, reconstructs schematics from captured connections, and offers an optional Groq assistant grounded in the selected circuit and its KiCad reports.
+Local KiCad engineering review with native checks, source evidence, linked board/schematic inspection, revision comparison, and an optional circuit assistant. The browser extension is a separate tool with simulator-specific limits.
 
-## Downloads and installation
+## Install and diagnose
 
-- [Download the complete local app](downloads/CircuitCheck-complete-v0.2.1-extension-v0.6.4.zip) — includes the built interface, Python backend, extension source and extension ZIP. Extract it, open `CircuitCheck`, run **Setup CircuitCheck.cmd**, then **Start CircuitCheck.cmd**. Install Python and KiCad separately. The app opens at `http://127.0.0.1:8000/`.
-- [Download browser extension v0.6.4](public/downloads/Circuit-Check-Multi-platform-v0.6.4.zip) — extract, open `chrome://extensions` or `edge://extensions`, enable Developer mode, choose **Load unpacked**, and select the extracted folder containing `manifest.json`.
-- [Browser extension source and simulator guide](browser-extension/README.md).
-- [Release notes](RELEASE_NOTES.md).
+1. Install Python 3.11 or later and Node.js 24. Install KiCad 10.0.x for native designs. The local integration baseline is KiCad 10.0.7.
+2. Extract the complete app package. Run **Setup CircuitCheck.cmd** once, then **Start CircuitCheck.cmd**. Node.js and npm dependencies are required for the local supplemental checker, including when using a prebuilt frontend.
+3. Open [the local workspace](http://127.0.0.1:8000/). **Tools → Setup & diagnostics** checks Python, API, KiCad, worker heartbeat and storage independently. Failed checks have fixes and the diagnostic report is downloadable.
+4. If Python or the API cannot start, run **Diagnose CircuitCheck.cmd**. This standalone PowerShell check does not need the Python API. Reports exclude credentials and circuit contents.
 
-Tinkercad and Wokwi have live project readers. Other supported tools use compatible-site readers or exported circuit files; see the extension guide for SimDuino, Falstad/CircuitJS, CircuitLab, SimulIDE, Proteus and LTspice support and limits. Desktop apps require supported exports.
+**Stop CircuitCheck.cmd** stops the background service. Readiness requires a live worker heartbeat; an installed KiCad executable alone does not establish readiness.
 
-The **Circuit assistant** tab uses actual captured components, pin/net data, project rules, KiCad findings and check coverage. Connect your own Groq key in the local form; without a key it provides clearly labelled evidence-only answers. Account rate limits apply. Automatic schematics preserve disconnected pins and missing wiring. No overall health score is calculated.
+Configuration precedence is process environment, `.env`, local bootstrap `data/runtime.json`, then defaults. `CIRCUITCHECK_DATA` controls the database, projects, attempt artifacts, logs, temporary files and provider metadata. The bootstrap file contains local runtime paths and is excluded from releases. Direct API and worker entry points use the same resolver.
 
-## Repository history
+## Main review flow
 
-This repository combines the Circuit Check app, assistant and simulator extension with interactive 3D review, component models and identifiers, severity visibility controls, linked revision cameras and axis navigation. Both development histories are preserved in the merge.
+**Upload → Analysis → Findings → Correction → Comparison** is the primary workflow. Preserve originals and upload a correction as revision B to compare results. The supported automatic repair is a selected straight-track width change: create a separate candidate, check it, review it, approve it, then recheck the applied revision. Other changes remain manual KiCad work.
 
-## Project layout
+The review queue provides Previous/Next issue, named browser-local filters, category/severity controls, and links between the selected issue, original engine evidence and its location. Search components and nets independently of findings. Select R1, U1 or GND and switch Board/Schematic to retain the selection. Native component anchors are selectable on the drawing too.
 
-| Folder | Contents |
-|---|---|
-| `src/` | Shared React website and local app interface |
-| `backend/` | FastAPI API, native KiCad worker and circuit assistant |
-| `browser-extension/` | Complete extension source, tests and usage guide |
-| `public/downloads/` | Installable extension ZIP served by the app and preview |
-| `downloads/` | Complete local app ZIP |
-| `fixtures/`, `tests/`, `e2e/` | Synthetic circuits and verification code |
+Native schematic net selection uses exported KiCad netlist membership to highlight connected symbol anchors. It does not infer native wire paths or symbol outlines. Board selection uses recorded component, pad and copper geometry. Without an original schematic, a reconstructed connection drawing uses available pad/pin assignments and labels its source, open pins and missing-data limits. Intended net membership does not prove copper routing or functional operation.
 
-Original design files, saved projects, API keys, databases and machine-specific runtime settings are excluded from this repository.
+Coverage, automatic schematics, the assistant and extension downloads remain in secondary navigation. The extension banner lives in Tools.
 
+## Analysis operations
 
-Review a KiCad PCB project before sending it for fabrication. CircuitCheck runs native KiCad checks, shows each reported problem on the board, and lets you preview a supported correction in a separate copy before applying it and checking again.
+The worker sends a heartbeat every two seconds during analysis and every idle poll. Readiness expires after 30 seconds without a heartbeat. API reads recover expired running jobs as failed, with explicit retry guidance. There is no silent automatic success or retry.
 
-![CircuitCheck engineering review workspace](public/images/review-v2-workspace.png)
+Queued work cancels immediately. Running checks stop cooperatively, including native-process waits. Each attempt uses a separate directory under the configured `analyses/` folder, and a lease gates publication. Cancelled or expired attempts cannot publish over a later result. Previous published reports and original design sources remain available.
 
-## Start on Windows
+Retry creates a new job on the same source revision and requests fresh checks. A failed/cancelled retry does not establish a clean circuit.
 
-Extract the ZIP completely. For a new installation, double-click **Setup CircuitCheck.cmd** once; then double-click **Start CircuitCheck.cmd** to run it in the background. You can close the launcher window; use **Stop CircuitCheck.cmd** to stop the server. The launcher registers a background Windows task for the current user. While you are signed in, a one-minute recovery trigger restarts the server after an unexpected exit. Stop CircuitCheck.cmd disables this recovery and stops the app process tree; Start CircuitCheck.cmd enables it again. The complete ZIP includes a production frontend and does not require Node.js during setup. A source checkout needs Node.js to build the frontend. Python and KiCad remain runtime prerequisites. This configured computer can reuse its existing installation through the private `data/runtime.json` file. Reopening the launcher reuses an already running matching local server. While enabled, the task can recover after signing into Windows. Use the launcher to open the browser or restart after an intentional Stop. Background service logs are retained under the configured data directory in `logs/supervisor.log`, `logs/api.log` and `logs/worker.log`. Direct `scripts/start.ps1` remains available for foreground diagnostics.
+## Credentials and storage
 
-The optional GitHub Pages site is an interactive recorded example. Enable GitHub Pages with GitHub Actions, then run the manual Pages workflow. Live circuit uploads, KiCad checks and Groq configuration run in the local app.
+Groq keys submitted through the app are validated and saved in the current user's OS credential store, using Windows Credential Manager on Windows. Provider JSON contains metadata only. A legacy plaintext key is removed only after successful write/read verification in the OS store. Failed migration retains the old file and reports the problem; no new plaintext fallback is used.
 
-## Engineering review v0.2.1
+Environment keys remain supported. Linux/macOS need a supported system keyring backend to save keys through the app. Credentials are scoped to the configured data directory and excluded from circuit context, diagnostics, backups and release packages.
 
-- The local app and public website share the same review interface. The website is an **interactive recorded example**, clearly labelled; live uploads and edits require the local engine.
-- Click a finding to zoom to UUID-resolved tracks, pads, components or reported locations. Pads/components use explicit object envelopes. Net highlighting follows stored net assignments. Unavailable mappings are labelled and never guessed; schematic findings cross-probe only unambiguous matching component references/pads.
-- Confirmed native rule violations, evidence-supported review suggestions and unconfirmed potential concerns are separate categories. AI explains selected evidence and does not establish engineering violations.
-- Coverage lists evaluated checks, findings, ignored rules, failures, missing dependencies and checks that were not performed. There is no overall safety score. Rule/profile fingerprints, source hashes, KiCad, normalizer, geometry and explanation-engine versions are visible.
-- **Upload revision B** into the current project to compare resolved, remaining and new findings, moved/changed components and physical routing/pad-net changes. Review comments and accepted exceptions persist. Exceptions retain the native finding and require re-review when their evidence or scope changes.
-- Rule/profile/engine/coverage changes or unstable object identities prevent a disappearance from being labelled a verified fix. UUID rewrites appear as added/removed objects. Physical routing comparison does not infer circuit intent or establish logical connectivity equivalence.
-- Select the `PCBWAY-STANDARD-BASELINE` published snapshot, import a numeric JSON profile, enter custom minimum dimensions, or include native `.kicad_dru` rules in the project ZIP. Manufacturer order references are stored as metadata; unknown codes do not fetch or invent private order constraints. Presets are scoped published minima, not full manufacturer approval.
-- Supported track-width fixes follow **copy → native recheck → review → explicit approval → apply → fresh recheck → download**. Other findings show a specific manual action in KiCad and can be re-uploaded as a revision.
-- Readable HTML and JSON reports retain coverage, provenance and review decisions; JSON also records explanation history and the actual explanation-model identifier returned by the provider when available.
+Tools → Project storage provides:
 
-JSON fabrication profile example (all dimensions in mm):
+- Backups containing original source, revision history, published engineering exports and review notes.
+- Restore into a **new** project, with source-hash validation and fresh checks queued. Existing projects are preserved. Restored reports are labelled as backup evidence pending recheck.
+- A preview-cleanup plan showing generated SVG/GLB count and size before removal. Sources, findings, review history and native JSON/XML reports are retained. Rerun checks to regenerate previews.
 
-```json
-{"code":"CUSTOM","name":"My fabrication specification","version":"1","source":"Approved drawing / quote reference","constraints":{"track_width":0.2,"clearance":0.2,"hole_size":0.3}}
-```
+Backups are limited to 25 MB compressed and 100 MB expanded. Machine settings and credentials are excluded.
 
-Supported numeric constraints: `track_width`, `clearance`, `hole_size`, `annular_width`, `edge_clearance`. A separate native KiCad DRC pass evaluates these in a disposable copy while preserving the original project rules and original files.
-
-## What it does
-
-- Accepts a complete KiCad project ZIP or multiple native project files.
-- Shows actual engine findings, reported locations, rule evidence and check coverage.
-- Previews a correction for a supported straight-track width violation, then reruns native checks before apply is available.
-- Preserves originals and revision history, with comparison, restore and native project export.
-- Includes downloadable synthetic test projects with known expected results at `/test-files/`.
-- Works without an AI key. Optional model explanations are separate from the native check results.
-
-This is a local, single-user application. Switch between Board and Schematic to inspect native exports, select hierarchical sheets and navigate electrical-rule findings. ERC pins use native reported coordinates, symbols use labelled anchors and source wires retain their UUID paths. Revision comparison supports both board and schematic views. General schematic editing and logical net tracing remain in KiCad. The included Fieldnode design is an original synthetic test fixture, not a validated functional circuit.
-
-## Tech stack
-
-| Layer | Technology |
-|---|---|
-| Interface | React, TypeScript, Vite, Tailwind CSS |
-| API | Python, FastAPI, Uvicorn |
-| Analysis | Separate Python worker calling native KiCad CLI |
-| Local storage | SQLite and project files |
-| Tests | pytest and Playwright |
-
-## Quick start
-
-Clone or download this repository, open a terminal in its root, then follow the setup below. KiCad is installed separately; it is not bundled in the repository.
-
-### Install and run
-
-Tested host: Windows x64, Python **3.14.6**, Node **24.21.0**, npm **11.19.0**, KiCad **10.0.7**. Direct Python dependencies are pinned in `requirements.txt`; the tested full dependency set is in `requirements.lock.txt`. Frontend dependencies are pinned in `package.json` and `package-lock.json`.
-
-1. Install Python 3.12 or later and Node 22.12 or later. Only the versions above were executed on this host.
-2. Install **KiCad 10.0.7** from [the official Windows download page](https://www.kicad.org/download/windows/) or [official Linux instructions](https://www.kicad.org/download/linux/). The recorded website preview needs no local KiCad; checking your own uploaded circuit requires the local engine.
-3. In this folder, run:
+## Development and regression checks
 
 ```powershell
-.\scripts\setup.ps1
-```
-
-4. If KiCad is not found automatically, copy `.env.example` to `.env` and set its literal `KICAD_CLI` path. Leave `AI_API_KEY` empty for deterministic explanations.
-5. Run `.\scripts\start.ps1`.
-
-For Linux/macOS:
-
-```sh
-sh scripts/setup.sh
-# If needed: export KICAD_CLI=/absolute/path/to/kicad-cli
-.venv/bin/python scripts/start.py --open
-```
-
-Linux/macOS startup scripts are supplied but were not executed here. Do not copy the Windows CLI path from `.env.example` on Linux.
-
-## GitHub Pages preview
-
-The frontend now adapts the MIT-licensed Halyard template by Kedhareswer Naidu, retaining its steel/cobalt sky, orbital signals, scroll transitions and product tilt around the existing working review interface. See [template source and licence details](TEMPLATE-NOTICE.md). The local API, native analysis pipeline and Pages recording adapter are unchanged. Run `npm run dev` for the redesigned development interface; the API and worker still need to run as described below.
-
-The published site provides an interactive replay of two real native KiCad runs on an original synthetic fixture, with object highlighting, revision comparisons, coverage, review history and downloadable native project versions. Its persistent banner identifies recorded results. GitHub Pages cannot execute FastAPI, SQLite jobs or native KiCad; live uploads, notes and approved edits require the local application.
-
-In **Settings > Pages**, set **Source** to **GitHub Actions**. `.github/workflows/pages.yml` installs locked frontend dependencies, runs `npm run build:pages`, and deploys only `dist-pages/`. The Pages build uses `/circuit-check/` as its base; `npm run build` still produces the working local application in `dist/` with `/` as its base. Do not publish the source folder directly: browsers cannot execute the TypeScript entry point without Vite's build step.
-
-To preview the Pages build locally, run `npm run build:pages`, then `npm run preview -- --mode pages --outDir dist-pages --port 4173`. Visit `http://127.0.0.1:4173/circuit-check/`. A full public analysis deployment would additionally require a server with KiCad, worker processes, persistent storage, authentication, project ownership checks and isolated execution; none is provisioned by this workflow.
-
-## Development and tests
-
-The API and worker must both run. From this folder, with the Python environment activated:
-
-```sh
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
-python -m backend.worker
-npm run dev
-```
-
-Vite serves port 5173 and proxies `/api` to port 8000. For production local use, `npm run build` produces `dist/`, which FastAPI serves directly. Interactive API documentation is at `/docs`.
-
-```sh
-python -m pytest -q
+npm ci
+python -m pip install -r requirements.lock.txt
+python scripts/generate_api_types.py
 npm run build
-npm run test:e2e
+npm run test:checks
+python -m pytest -m "not native"
+python -m pytest -m native
+npm test --prefix browser-extension
+node --experimental-strip-types --test tests/test_generated_schematic.mjs
+npm run build:pages
+npx playwright test --config playwright.pages.config.ts
 ```
 
-Browser tests use an installed Chrome by default. Set `PW_CHANNEL=msedge` to use Edge, or install the matching Playwright Chromium and use the appropriate channel configuration. Set `PW_BASE_URL=http://127.0.0.1:5173` when testing the Vite server. Run the API and worker before browser tests. They intentionally create synthetic projects in the configured data directory; use a disposable `CIRCUITCHECK_DATA` directory for an isolated test installation.
+`src/api.generated.ts` and `docs/openapi.json` come from FastAPI. `python scripts/generate_api_types.py --check` detects drift. Service, diagnostics, job and storage responses use generated contracts; historical geometry/report interfaces remain explicit domain interfaces. The API helper defaults to `unknown`, requiring a chosen response type. Project loading, diagnostics, job controls, storage tools, search and filters are focused hooks/components.
 
-Fixtures are original, redistributable CC0 content. `scripts/generate_fixtures.py` regenerates them with deterministic UUIDs. Tests use real KiCad for clean boards, deliberate DRC/ERC findings, SVG coordinate checks, hierarchical schematics, custom rules, missing libraries, repair validation, comparisons and downloads. Engine tests skip explicitly if KiCad is absent; a skipped integration is not a pass.
+PR CI builds the frontend, checks schema drift, runs portable Python tests, extension tests, schematic tests and recorded browser journeys. A separate native KiCad job installs the official [10.0 release channel](https://www.kicad.org/download/linux-distros/), records its actual CLI version and runs native integration tests. Workflow execution requires committing these local files to GitHub.
 
-See `VERIFICATION.md` for executed checks, results and remaining limitations. Rendered examples are in `screenshots/`.
+## Releases and support limits
 
-## Review workflow
+The release workflow runs on a version tag or manual dispatch. Tests and builds precede complete app/extension ZIP generation, checksums and a version manifest. Packages use an explicit allowlist and exclude credentials, `.env`, databases, saved projects and machine runtime settings. App version comes from `package.json`; extension manifest/package versions must agree. The workflow uploads artifacts; publication is separate.
 
-### Try it without your own design files
+After building, `python scripts/package_release.py --out-dir release` reproduces the packages locally. See [VERIFICATION.md](VERIFICATION.md), [RELEASE_NOTES.md](RELEASE_NOTES.md) and [the extension guide](browser-extension/README.md).
 
-Open `http://127.0.0.1:8000/test-files/` while CircuitCheck is running. This page provides downloadable native KiCad ZIPs, literal expected results, original engine reports and a step-by-step repair test. Upload each ZIP unchanged. The deliberate width problem reports 1 error and 1 unconnected-end warning; the corrected width reports 0 errors and the same warning; the empty board outline reports no DRC findings. These are synthetic fixtures, and no schematic is checked in those three cases. The downloadable cases were also executed through the live upload/worker pipeline after packaging.
+Pages is a recorded synthetic example. It does not host Python, live KiCad jobs, settings or project storage. Reconstructed schematics and illustrative 3D packages do not verify operation or fit. No overall circuit health score is calculated; results do not certify fabrication readiness.
 
-1. Upload a complete project ZIP, or select multiple native files together. ZIPs preserve hierarchy and directory structure. Originals are stored separately.
-2. Select a root only when multiple independent candidate roots exist. The worker runs supported checks outside the upload request.
-3. Select a finding in the table or viewer. Reported coordinates, objects, rules and literal measurements appear in the details panel. Location is left unavailable when the engine does not provide one.
-4. For a supported track-width violation, select **Preview change**. Only the exact segment UUID's width atom is changed in a new candidate copy. The engine reopens it through SVG export and reruns DRC before apply is available.
-5. Review resolved, remaining and new findings. **Apply change & recheck** creates the current revision and runs fresh checks. A saved file or a lower total finding count does not establish a verified resolution.
-6. Use Revisions to compare or restore the parent revision. Export originals, the current native project ZIP, or the normalized JSON report. Original engine JSON, logs, SVG exports and the schematic netlist remain available through project-scoped artifact routes.
 
-The viewer uses native full-page, scale-1, unmirrored SVG exports. Mapping comes from millimetre dimensions and `viewBox`, preserving KiCad's top-left origin (X right, Y down). The native fixture endpoint-to-SVG transformation is integration-tested. Fitted/cropped SVGs and unknown coordinate mappings are not assumed. PCB layers are exported individually with identical validated transforms. Markers highlight reported positions, not inferred minimum-distance collision points. SVG element IDs are never treated as CAD object IDs.
+## Local tscircuit checks integration
 
-Keyboard: Ctrl/Command+O opens upload; F fits the view; Alt+drag pans; Escape closes dialogs. Narrow screens use Design / Findings / Details tabs. Dialogs use native modal focus trapping. Reduced-motion preferences are respected.
+CircuitCheck uses [@tscircuit/checks](https://github.com/tscircuit/checks) **0.0.279**, pinned with **circuit-json 0.0.550** and **@tscircuit/solver-utils 0.0.25** in package.json/package-lock.json. The last dependency supplies an undeclared runtime import in checks 0.0.279. The installed package and the five enabled functions were tested together on Node.js 24.21.0. Upstream checks use the MIT license, copyright 2024 tscircuit Inc.; the full notice is retained in [public/licenses/tscircuit-checks-MIT.txt](public/licenses/tscircuit-checks-MIT.txt).
 
-## Capability matrix
+Run Setup CircuitCheck.cmd after installing Node.js 24. Setup now installs the locked npm dependencies even when a compiled frontend already exists. For an already configured checkout:
 
-| Input | Read | Preview | Electrical / connectivity | Geometry / manufacturing | Editing | Native export | Conversion |
-|---|---|---|---|---|---|---|---|
-| `.kicad_pcb` | Native | SVG layers | PCB connectivity DRC; parity with a complete matching schematic | Native project DRC | One selected straight segment's width | Revised board in project ZIP | None |
-| `.kicad_sch` + internal hierarchy | Native | SVG sheets | ERC + XML netlist | Not applicable | Unavailable | Original schematic preserved | None |
-| `.kicad_pro`, `.kicad_dru`, library tables and bundled native libraries | Project dependencies | Through the design | Rules and dependencies used by native checks | Native rules | Settings/rules never weakened | Preserved | None |
-| Project ZIP | Validated extraction | Contained native designs | As above | As above | As above | Directory structure preserved | None |
-| STEP/WRL accompanying a project; PDFs/images | Stored reference/dependency files | Not analyzed or displayed | Not checked | Not checked | Unavailable | Preserved in ZIP | None |
-| EasyEDA, EAGLE, Altium, Gerber/Excellon, standalone STEP/IGES, DXF, STL | Unsupported | Unsupported | Not checked | Not checked | Unsupported | Unsupported | None |
-
-The adapter boundary is `backend/engine.py`, with independent capabilities in `/api/capabilities`. Future formats require verified parsers/converters, fixtures and their own analysis implementation before becoming available. KiCad's broader import options are intentionally not advertised as CircuitCheck support.
-
-A project settings file alone cannot be analyzed. Photographs, PDFs, mechanical models and fabrication plots do not establish authoritative electrical connectivity. ERC/DRC do not establish component ratings, current capacity, physical soldering quality, or functional/safety performance.
-
-## Analysis semantics
-
-- CLI command help is probed before using version-dependent flags. Tested pin: **10.0.7**; other 10.0 patch versions are accepted but unverified. Other major versions fail explicitly.
-- Native JSON reports retain severity settings and exclusions. Exit 5 means reported violations, not an execution failure. Other nonzero exits, timeouts and malformed reports fail the affected check.
-- Board DRC refills zones in memory in a disposable working copy with `--refill-zones`, without `--save-board`. SVG exports use `--check-zones`. Existing saved fills and originals are not rewritten.
-- Job states: queued, running, completed, partial, failed. Completed means the applicable checks finished; absent design types remain visibly **Not checked**. Missing settings/libraries mark analysis partial. A hierarchy missing required subsheets skips ERC and cannot become a clean result.
-- A native engine can sometimes read an unexpected file version. Compatibility is established by actual loading/checking/exporting; unsupported syntax fails with retained logs. CircuitCheck does not claim all historical or future native versions are verified.
-- A missing custom-rule file cannot always be distinguished from a project that never had one. The upload records that uncertainty instead of inventing rules. Bundle the complete project to establish rule completeness.
-- Analysis caches include content, rules, engine version, selected root and analysis options. Edits invalidate the cache. Apply forces a fresh run. Each original engine report, tool version, revision hash, rules fingerprint, logs and check coverage is retained.
-- Stable finding IDs derive from engine, root file, rule, sheet and affected UUIDs. This supports comparisons for unchanged objects; rewriting UUIDs in an external editor appears as removed/new findings. Different reports referring to the same rule and exact UUID set may be coalesced; original reports preserve the complete engine output.
-- Core checks do not require AI credentials. Optional AI never writes files or chooses executable operations. Free-form prose cannot be proven true automatically: schemas, known-reference checks and a conservative numerical guard reject unsupported output, and model explanations are labelled for review against evidence.
-
-## Optional assistant
-
-Use **Circuit assistant → Connect Groq** in the local app, or configure `GROQ_API_KEY` server-side. The legacy `AI_API_KEY`, `AI_BASE_URL` and `AI_MODEL` settings remain available for a compatible backend that supports strict JSON-schema output. See the full circuit-aware assistant section below for context selection, storage and limitations.
-
-A bounded selection of actual components, pin/net connections, project rules, KiCad reports, coverage, the question and matching prior conversation is sent to the configured provider. The context inspector shows included evidence and omissions. Credentials are used only to authenticate the provider request. Network/provider failures or rejected responses fall back to clearly labelled evidence-only explanations. No live model completion was executed on this host because no key was configured; provider behavior was tested with controlled responses.
-
-## Storage, limits and deployment
-
-`data/circuitcheck.sqlite3` stores projects, immutable revisions, jobs, normalized findings/results and repair previews. `data/projects/<uuid>/original/` preserves uploads; `revisions/<uuid>/source/` holds immutable native files; `artifacts/` holds reports and previews. `LocalStorage` is a storage protocol implementation and `db.py` is a small data-access layer. PostgreSQL/object storage would require a new implementation; they are not included.
-
-Uploads are limited to 25 MB compressed, 100 MB expanded, 500 entries and 12 archive path levels. Traversal, absolute/drive/UNC names, links, platform device names, collisions, encrypted entries and nested archives are rejected. Only allowed data files are accepted. External library URIs are blocked; bundle libraries using `${KIPRJMOD}`. Uploaded scripts are never executed and dependencies are never downloaded automatically. SVG is parsed with defusedxml and reduced to a safe drawing subset, then loaded as an image with a restrictive response CSP.
-
-Only one native job runs at a time across workers; the queue is bounded. CLI calls use argument arrays, a timeout, stripped credential variables and captured output. Windows Job Objects cap each engine process at 1.5 GiB and terminate its descendants on close. Unix processes have CPU/address-space/output-file limits. A failure to establish Windows limits fails the engine explicitly. A stale running job fails after 10 minutes without a stage update; rerun it after restarting the worker.
-
-**Local-only deployment:** API binding is loopback, accepted Host/Origin values are local, and mutations require a custom header. This is not multi-user authentication or an operating-system security sandbox. Native local jobs still run with the launching user's OS access. Use a dedicated OS account/container for untrusted projects. This build must not be exposed publicly without authentication, ownership checks and protected per-user downloads.
-
-Docker/Compose files are supplied with loopback port binding, a non-root user, resource caps, dropped capabilities, read-only root filesystems and a network-disabled worker. Build/run:
-
-```sh
-docker compose up --build
+```powershell
+npm ci
+npm run build
+& '.\Start CircuitCheck.cmd'
 ```
 
-**Docker was not installed on this host, so neither image build nor Compose execution was verified.** The recipe requests KiCad upstream 10.0.7 from the official KiCad Ubuntu PPA and checks its version; it fails rather than silently installing another engine version if that package is no longer available. Container isolation and Linux limits require verification on the target host.
+Open http://127.0.0.1:8000/. Upload a schema:1 Circuit Check captured JSON file/report through the existing project upload dialog, or rerun an existing native KiCad project. Try fixtures/captured-checks/required-pin-violation.json, valid.json, incomplete.json and underspecified.json. The worker runs the Node checker locally; no AI key, hosted checking service or network request is used by these checks. CIRCUITCHECK_NODE can select an explicit Node executable if it is not on PATH.
 
-Project deletion removes its SQLite records and local artifacts after active jobs finish. Canceled repair previews remain in revision history until project deletion; automatic retention/garbage collection is not implemented. Back up the data directory before external maintenance.
+The Docker recipe includes Node and the locked production checker dependencies. It has not been built on the Windows verification host because Docker is unavailable; the tested startup path is the local Windows launcher.
 
-## Troubleshooting
+Native KiCad DRC/ERC remains authoritative for native violations. The supplemental engine has its own source label, exact exported rule name, upstream error/warning type, original message, severity, input hash and retained tscircuit-report.json artifact. A supplemental error remains an error; a warning remains a warning. The separate evidence classification is a review suggestion because this is a captured-input check, not native KiCad verification. Supplemental failure is visible in coverage and a workspace alert; it does not rewrite native findings or disable an otherwise native-verified repair.
 
-| Message | Action |
+### Inputs and explicit metadata
+
+Accepted captures are schema:1 objects with components[].terminals[], or exported reports containing snapshot or run.snapshot. Raw Wokwi diagram.json, photographs, PDFs and arbitrary Circuit JSON arrays are not new checker inputs; the pre-existing schematic importer remains separate. Limits: 5 MB, 500 components, 5,000 pins and 5,000 explicit connections. JSON accompanying native KiCad files remains associated data; it does not override native component facts.
+
+The adapter preserves each component id, terminal key (or explicitly labelled source index when absent), pin name and exact net identifier in its source map. Duplicate pin names require distinct keys to remain distinguishable. Numeric zero/unknown values are not silently converted to connection facts. Known assignments use a nonempty net string; explicit null means no assigned net; omitted net means unknown and is not treated as a known open connection.
+
+Optional captured metadata is explicit and must come from the actual source/component documentation:
+
+- ftype: "simple_chip" declares a chip. Unknown component models become a structural simple_pinout container in Circuit JSON, with no inferred chip, power, ground, voltage or physical role.
+- pinInventoryComplete: true and pinAttributesComplete: true declare complete captured inventories for chip specification checks. Do not set these merely to force a check to run.
+- requiresPower: true and requiresGround: true declare whether the chip requires those roles. U-prefixed references, model names, VCC and GND pin/net names do not establish requirements.
+- A terminal's attributes object uses Circuit JSON names such as must_be_connected, requires_power, requires_ground, is_input, is_passive, provides_voltage and requires_voltage. Unknown fields should be omitted. Voltage values supported by this adapter are explicit finite numbers in volts; ranges, prose and voltage tolerances are not evaluated.
+- topologyComplete: true declares that all connections were captured. Optional connections use `{id, from:{componentId,pinKey}, to:{componentId,pinKey}}`. Optional component internalConnections lists groups of existing terminal keys; internal wiring is never inferred from board or model names.
+
+Shared exact net membership and explicit connections become logical source_trace records. A single-pin named net does not create an invented connection. The adapter never creates PCB traces, pads, layers, board geometry, inferred grounds, component ratings, or missing wires.
+
+### Enabled checks and coverage
+
+| Upstream function | Required facts |
 |---|---|
-| KiCad CLI unavailable | Install 10.0.7 on the server and set the absolute `KICAD_CLI` path. No fabricated checks are substituted. |
-| Cannot reach the local server / Failed to fetch | Double-click `Start CircuitCheck.cmd`, wait for the browser, then refresh `http://127.0.0.1:8000/`. The frontend cannot upload while the backend is stopped. |
-| Worker is queued indefinitely | Start `python -m backend.worker` using the same environment and data directory as the API. |
-| Missing settings / library / subsheet | Upload a complete project ZIP. Review the exact missing path in check coverage. |
-| Several root projects | Choose the intended root in the project selection control. |
-| Source changed after preview | Upload/recheck the actual current files, then create a fresh preview. |
-| Analysis failed | Review check coverage and retained `*.log` artifacts; use Rerun checks after correcting the cause. |
-| Automatic repair unavailable | Apply the specific correction in KiCad and upload a new project. No suppression or rule weakening is performed. |
-| npm / Python install blocked | Grant network access to official package registries and retry setup. Existing installations need not be overwritten. |
+| checkPinMustBeConnected | Explicit must_be_connected flags, known net/null assignments and explicitly complete captured connectivity |
+| checkAllPinsInComponentAreUnderspecified | Declared chip type and complete pin/attribute inventories |
+| checkNoPowerPinDefined | Complete chip inventories and an explicitly declared power requirement; upstream-inapplicable all-passive packages are skipped |
+| checkNoGroundPinDefined | Complete chip inventories and an explicitly declared ground requirement |
+| checkSourcePinVoltageCompatibility | Complete connectivity and an actually connected pair with numeric provided/required nominal voltages; no undocumented tolerances or ranges |
 
-The build host's default sandbox temp directory denied pip writes; setup uses a workspace-local temp directory. KiCad was extracted from the officially signed installer without a system installation. The host sandbox disallowed KiCad's optional HKCU preferences key; those warnings were retained in logs and the actual CLI checks/exports still completed with valid reports.
+Each function runs only on its eligible subset. Coverage distinguishes evaluated, partially evaluated, skipped, unsupported and failed checks, with item counts and reasons. Skipped, unsupported and failed rows have null finding counts rather than a claimed pass. A native PCB normally supplies intended net membership but not chip type, required-pin flags or complete pin metadata, so these supplemental checks are usually skipped for it. Existing native DRC/ERC still runs normally.
 
-## Engine references
+Routing, placement, copper clearance, board-edge, schematic styling, switch-contact and other aggregate upstream checks are unsupported here. runAllChecks is deliberately not used. Native KiCad geometry is not approximated into a tscircuit PCB model.
 
-- [KiCad 10.0 CLI](https://docs.kicad.org/10.0/en/cli/cli.html): checked against runtime command help.
-- [Native PCB S-expression format](https://dev-docs.kicad.org/en/file-formats/sexpr-pcb/): the narrow concrete-syntax track editor preserves all unrelated bytes.
-- [Official Windows package](https://github.com/KiCad/kicad-source-mirror/releases/download/10.0.7/kicad-10.0.7-x86_64.exe): Authenticode status **Valid**, signer **KICAD SERVICES CORPORATION**. Locally computed SHA-256: `ce3881b6a9188eb34ac1ebaaec7651149e8a025206410addfb11a1a9656ecf95`.
+Captured findings select original component identities in the existing reconstructed schematic. Native mappings require an exact recorded pad or a unique component reference/anchor. Ambiguous references and absent coordinates remain unavailable; no generated layout is passed off as native geometry. A reconstructed drawing is withheld if captured net assignments are unknown. Original uploaded files remain unchanged.
 
+### Integration verification
 
-## License
+```powershell
+npm run test:checks
+python -m pytest tests/test_tscircuit_integration.py -q
+python -m pytest -m native -q
+npm run build
+```
 
-Original application code is licensed under the [MIT License](LICENSE). Original synthetic design fixtures use [CC0 1.0](fixtures/LICENSE.txt). Third-party dependencies, including the separately installed KiCad engine, retain their own licenses. Local uploads, database contents, installed dependencies and presentation files are not part of this source repository.
+Fixtures cover a required floating pin, a valid documented circuit, incomplete captures, pin-specification warnings, duplicate pin-name identity mapping, explicit connections, voltage mismatch and injected check/process failure. Tests retain upstream severity, verify exact source mapping and source hashes, and keep native engine findings/repair authority independent of supplemental failures.
 
-
-## Local generated schematics
-
-Open **Automatic schematic** in the local app. It draws from the current circuit's available component and connection data, including open pins, without a separate import or Generate action. Download SVG for the drawing and JSON for the captured pin/net connections. Optional imports are available for other saved circuit files. This feature runs locally in the browser and leaves original files unchanged.
-
-Note: a generated schematic reconstructs available connectivity; it does not recover the original schematic or establish symbol pin roles, component ratings, firmware behavior or whole-circuit correctness. PCB pad-net assignments express intended connectivity even when tracks are missing. Unsupported/internal simulator connections and unrecorded pins need review. Original schematics remain available through the existing native Schematic view. Images and PDFs cannot be used as electrical netlists.
-
-
-### Automatic current-circuit schematic
-
-PCB-only circuits with captured pad connections now open their **Automatic schematic** view automatically. The regular **Schematic** button also opens the automatic reconstruction whenever an original schematic view is unavailable. There is no separate import or Generate action: the drawing uses the selected circuit and refreshes with its available analysis data. Available original schematics remain preferred. Other file sources remain optional inside a collapsed panel.
-
-Note: Circuit Check needs the current circuit's recorded connections; it does not invent a circuit from no information. If analysis has not yet supplied connectivity, it shows a waiting message. Original source files remain unchanged.
-
-
-### Open and unfinished circuits
-
-Automatic schematics are also generated for circuits with disconnected pins, isolated parts or even zero connected nets, provided their component/pin data is available. Missing connections are preserved and marked ×. The view shows unconnected pin counts, a pin list, and separate review notices for single-pin nets and existing KiCad unconnected/dangling findings. SVG and JSON exports retain open endpoints. No automatic repair or invented wiring is performed. A PCB's shared net assignment does not prove physical copper continuity.
-
-
-### Saved boards without analysis geometry
-
-Automatic schematics now read the saved PCB directly when analysis geometry has no pads. Footprints and pads without native UUIDs are supported, including older module records. Pads with no assigned net stay open; they are never merged simply because net data is absent. This read-only fallback needs neither a fresh import nor a DRC rerun and does not modify engineering geometry, findings or source files. Boards containing only reference headers or outlines cannot reveal an Arduino's missing internal wiring; the view states that limitation explicitly. Unsupported or unreadable sources produce a visible error rather than waiting indefinitely.
-
-
-## Beginner explanations
-
-Every selected finding includes plain-language meaning and possible consequences. These are conditional explanations, not simulated outcomes. Unknown rules are labelled as lacking an established consequence. Original technical evidence and check coverage are retained; no overall circuit score is calculated.
-
-General explanation references: [KiCad DRC](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#design-rules-checking), [Wokwi LED pins](https://docs.wokwi.com/parts/wokwi-led), [Arduino digital pins](https://github.com/arduino/docs-content/blob/main/content/learn/02.microcontrollers/01.digital-pins/digital-pins.md). These references do not verify an individual circuit.
-
-
-## Circuit-aware assistant (local)
-
-Open **Circuit assistant**, or use **Ask the circuit assistant about this finding**. Every question is scoped to the selected project/revision. The backend reads saved PCB pins/net assignments (including pads without UUIDs), or a retained KiCad schematic XML netlist; captures project rules/custom rule text, component values, DRC/ERC evidence, coordinates and check coverage; and selects a bounded, relevant subset for the model. Source/check hashes, omissions and source notes are visible. Affected components are not represented as proven root causes. Unavailable wiring, partial context and stale reports are explicit limitations.
-
-Connect Groq using the local password form. Its fixed server-side endpoint validates the key via the models endpoint, stores it in ignored `data/assistant-provider.secret.json`, and uses `openai/gpt-oss-20b` with structured output. A configured GROQ_API_KEY may also be supplied on the backend. Credentials are never included in the circuit context or returned through configuration status. Use the Groq Free Plan if available; token/rate/account limits apply, and five hours is not a guaranteed allowance. No credits are purchased, billing tiers changed or model requests retried automatically. On missing credentials, rate limits or rejected responses, **Evidence-only analysis — no AI model response** is shown instead of a fabricated AI answer.
-
-AI prose is an interpretation, not verified engineering evidence. Responses must cite existing evidence IDs; unfamiliar component references, object identifiers, numeric claims and edit/verification claims are conservatively rejected. These filters do not mathematically prove all prose correct. Authoritative source cards are generated from actual tool data by the backend. The model cannot edit files, run code, simulate a circuit, certify safety or verify repairs. Explanations/history persist per revision, and prior messages are reused only for the matching evidence snapshot. Original circuits and check results are not changed.
-
-Provider references: [Groq compatibility](https://console.groq.com/docs/openai), [structured outputs](https://console.groq.com/docs/structured-outputs), [account limits](https://console.groq.com/docs/rate-limits). Free usage requires your own Groq account/key and is governed by that account's plan.

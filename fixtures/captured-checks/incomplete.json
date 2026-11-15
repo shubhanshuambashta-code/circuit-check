@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "designId": "tscircuit-local-fixture",
+  "title": "Explicit captured pin fixture",
+  "source": "Synthetic captured metadata fixture",
+  "topologyComplete": false,
+  "components": [
+    {
+      "id": "controller:original",
+      "label": "U1",
+      "ftype": "simple_chip",
+      "pinInventoryComplete": false,
+      "pinAttributesComplete": false,
+      "requiresPower": true,
+      "requiresGround": true,
+      "terminals": [
+        {
+          "key": "supply",
+          "name": "VCC",
+          "net": "rail",
+          "attributes": {
+            "requires_power": true,
+            "requires_voltage": 5,
+            "must_be_connected": true
+          }
+        },
+        {
+          "key": "ground",
+          "name": "GND",
+          "net": "return",
+          "attributes": {
+            "requires_ground": true,
+            "must_be_connected": true
+          }
+        },
+        {
+          "key": "signal",
+          "name": "IN",
+          "net": "signal",
+          "attributes": {
+            "is_input": true,
+            "must_be_connected": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "supply:original",
+      "label": "J1",
+      "terminals": [
+        {
+          "key": "positive",
+          "name": "supply",
+          "net": "rail",
+          "attributes": {
+            "provides_power": true,
+            "provides_voltage": 5
+          }
+        },
+        {
+          "key": "return",
+          "name": "return",
+          "net": "return",
+          "attributes": {
+            "provides_ground": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "load:original",
+      "label": "R1",
+      "terminals": [
+        {
+          "key": "1",
+          "name": "1",
+          "net": "signal",
+          "attributes": {
+            "is_passive": true
+          }
+        }
+      ]
+    }
+  ]
+}

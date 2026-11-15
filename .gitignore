@@ -56,3 +56,6 @@ Desktop.ini
 *.lck
 *-backups/
 ~$*
+
+# Preserved pre-integration shared dependency junction
+.node_modules.shared-before-tscircuit/

@@ -5,32 +5,34 @@ import {explainConsequence} from './finding-consequences';
 import './finding-consequences.css';
 
 export const categoryLabel=(value?:string)=>value==='confirmed_violation'?'Confirmed violation':value==='review_suggestion'?'Review suggestion':value==='potential_concern'?'Potential concern':'Legacy finding · recheck to classify';
-export default function FindingInspector({finding:f,result,pid,rid,onHighlight,onPreview,onRefresh,onAsk,disabled=false}:{finding?:Finding;result?:Result;pid:string;rid:string;onHighlight:(ids:string[])=>void;onPreview?:()=>void;onRefresh?:()=>void;onAsk?:(id:string)=>void;disabled?:boolean}){
- const [tab,setTab]=useState('evidence'),[reason,setReason]=useState(''),[kind,setKind]=useState('comment'),[question,setQuestion]=useState(''),[answer,setAnswer]=useState<any>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState(false);
- useEffect(()=>{setAnswer(undefined);setError('');setReason('')},[f?.id]);
+export default function FindingInspector({finding:f,result,pid,rid,onHighlight,onPreview,onRefresh,onAsk,onLocate,evidenceKey,disabled=false}:{finding?:Finding;result?:Result;pid:string;rid:string;onHighlight:(ids:string[])=>void;onPreview?:()=>void;onRefresh?:()=>void;onAsk?:(id:string)=>void;disabled?:boolean;onLocate?:()=>void;evidenceKey?:number}){
+ const [tab,setTab]=useState('evidence'),[reason,setReason]=useState(''),[kind,setKind]=useState('comment'),[question,setQuestion]=useState(''),[answer,setAnswer]=useState<{provider:string;answer:string;hypotheses?:string[];missing_information?:string[]}>(),[busy,setBusy]=useState(false),[error,setError]=useState(''),[copied,setCopied]=useState(false);
+ useEffect(()=>{setAnswer(undefined);setError('');setReason('');setTab('evidence')},[f?.id]);
+ useEffect(()=>{setTab('evidence')},[evidenceKey]);
  async function save(){if(!f||!reason.trim())return;setBusy(true);setError('');try{await api(`/projects/${pid}/review-notes`,{finding_id:f.id,revision_id:rid,kind,body:reason});setReason('');onRefresh?.()}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
- async function explain(){if(!f||!question.trim())return;setBusy(true);setError('');try{setAnswer(await api(`/projects/${pid}/chat`,{finding_id:f.id,revision_id:rid,question}))}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
+ async function explain(){if(!f||!question.trim())return;setBusy(true);setError('');try{setAnswer(await api<{provider:string;answer:string;hypotheses?:string[];missing_information?:string[]}>( `/projects/${pid}/chat`,{finding_id:f.id,revision_id:rid,question}))}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
  if(!f)return <aside className="r2-inspector"><div className="r2-inspector-empty"><Target size={28}/><h3>Select a finding</h3><p>Locate the affected objects, inspect the source evidence and decide the next action.</p></div></aside>;
  const consequence=explainConsequence(f);
  const objects=result?.geometry?.objects.filter(o=>(f.board_object_ids||[]).includes(o.id))||[];
  const notes=f.review_notes||[];
- const filename=f.source==='Fabrication DRC'?'fabrication-drc.json':f.source.includes('ERC')?'erc.json':'drc.json';
+ const filename=f.evidence_artifact|| (f.source==='Fabrication DRC'?'fabrication-drc.json':f.source.includes('ERC')?'erc.json':'drc.json');
  return <aside className="r2-inspector">
   <div className="r2-inspector-tabs" role="group" aria-label="Finding detail view">{[['evidence','Evidence'],['review',`Review${notes.length?' · '+notes.length:''}`],['explain','Explain']].map(([value,label])=><button key={value} className={tab===value?'active':''} aria-pressed={tab===value} onClick={()=>setTab(value)}>{label}</button>)}</div>
   <div className="r2-detail-body">
    <div className="r2-detail-category"><span className={`r2-class ${f.classification||''}`}>{categoryLabel(f.classification)}</span><span className={`r2-severity ${f.severity}`}>{f.excluded?'Engine exclusion':f.severity}</span></div>
    <h2>{f.title}</h2>
+   <section className="r2-location-card" aria-label="Issue location"><strong>Issue → evidence → location</strong><p>{f.file}{f.layer?' · '+f.layer:''}</p><p>{[...(f.references||[]),...(f.nets||[])].join(' · ')||'See affected objects below'}</p><small>{f.position?`Reported at ${f.position.x.toFixed(2)}, ${f.position.y.toFixed(2)} mm`:'No reported coordinate'}</small>{onLocate&&<button className="r2-secondary" onClick={onLocate}><Target size={14} aria-hidden="true"/>Locate selected issue</button>}</section>
    {onAsk&&<button className="r2-secondary" onClick={()=>onAsk(f.id)}><MessageSquare size={15}/>Ask the circuit assistant about this finding</button>}
    <section className="dh-consequence"><h3>In plain language</h3><p>{consequence.meaning}</p><p><strong>What could happen: </strong>{consequence.consequence}</p>{consequence.uncertain&&<p>This consequence is not confirmed for the current circuit. Review the original evidence.</p>}</section>
    {tab==='evidence'&&<>
     {(f.measured||f.required)&&<div className="r2-measurements"><div><span>Measured</span><strong>{f.measured?`${f.measured.value} ${f.measured.unit}`:'Not reported'}</strong></div><div><span>Required minimum</span><strong>{f.required?`${f.required.value} ${f.required.unit}`:'Not reported'}</strong></div></div>}
-    <section><h3>Evidence</h3><p>{f.evidence}</p><span className="r2-muted">{f.source} · {f.rule}</span></section>
+    <section><h3>Evidence</h3><p>{f.evidence}</p><span className="r2-muted">{f.source} · {f.rule}</span><a className="r2-link-button" href={artifactUrl(pid,rid,filename)} download={filename}><FileText size={14} aria-hidden="true"/>Open source evidence</a></section>
     <section><h3>Affected objects</h3><p className="r2-caption">{f.highlight_message||'Object mapping not available in this report. Rerun checks.'}</p>
      {objects.map(o=><button className="r2-object-button" key={o.id} onClick={()=>onHighlight([o.id])}><Target size={15}/><span><strong>{[o.kind,o.reference,o.pad?`pad ${o.pad}`:'',o.net].filter(Boolean).join(' · ')}</strong><code>{o.id.slice(0,12)}…</code>{o.envelope&&<small>Object envelope</small>}</span></button>)}
-     {!objects.length&&f.objects.map((o,i)=><div className="r2-unmapped-object" key={o.uuid||i}><p>{o.description||'Engine object'}</p><code>{o.uuid||'No UUID reported'}</code></div>)}
+     {!objects.length&&f.objects.map((o,i)=><div className="r2-unmapped-object" key={o.uuid||i}><p>{o.description||'Engine object'}</p><code>{o.uuid||o.source_id||'No native UUID reported'}</code></div>)}
      {!!f.nets?.length&&<div className="r2-net-actions">{f.nets.map(net=><button className="r2-link-button" key={net} onClick={()=>onHighlight(result?.geometry?.objects.filter(o=>o.net===net).map(o=>o.id)||[])}>Highlight net {net}<ArrowUpRight size={13}/></button>)}</div>}
     </section>
-    <section><h3>Next action</h3><p>{f.suggestion}</p>{!f.repair&&<span className="r2-caption">Make this change in KiCad, then upload it as revision B to compare and recheck.</span>}</section>
+    <section><h3>Next action</h3><p>{f.suggestion}</p>{!f.repair&&<span className="r2-caption">{f.source==='@tscircuit/checks'?'Correct the captured specification or source circuit, then upload an updated revision to compare and recheck.':'Make this change in KiCad, then upload it as revision B to compare and recheck.'}</span>}</section>
     <details className="r2-technical"><summary>Rule, location and source report</summary><dl><dt>Rule source</dt><dd>{f.rule_source}</dd><dt>File</dt><dd>{f.file}</dd><dt>Layer</dt><dd>{f.layer||'Not reported'}</dd><dt>Position</dt><dd>{f.position?`${f.position.x.toFixed(3)}, ${f.position.y.toFixed(3)} mm`:'Not reported'}</dd></dl><a href={artifactUrl(pid,rid,filename)} download={filename}><FileText size={14}/> Original engine evidence</a><p className="r2-caption">{f.classification_basis}</p></details>
     <button className="r2-link-button" onClick={async()=>{try{await navigator.clipboard.writeText(f.evidence);setCopied(true);setTimeout(()=>setCopied(false),1800)}catch{setError('Clipboard unavailable. Select and copy the evidence text.')}}}>{copied?<Check size={14}/>:<Clipboard size={14}/>} {copied?'Copied':'Copy evidence'}</button>
    </>}

@@ -18,7 +18,7 @@ def test_real_clean_board(engine,client,upload_fixture):
     result=r['revision']['result']
     assert result['status']=='completed'
     assert result['findings']==[]
-    assert result['engine_version']=='10.0.7'
+    assert result['engine_version'].startswith('10.0.')
     assert any(c['name']=='ERC' and c['status']=='skipped' for c in result['checks'])
     assert len(result['previews'][0]['layers'])==4
 

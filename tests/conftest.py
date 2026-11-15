@@ -12,7 +12,13 @@ def database(tmp_path,monkeypatch):
     monkeypatch.delenv('AI_API_KEY',raising=False)
     monkeypatch.delenv('GROQ_API_KEY',raising=False)
     import backend.assistant_provider as provider
+    monkeypatch.setattr(provider,'DATA',tmp_path/'data')
     monkeypatch.setattr(provider,'CONFIG_FILE',tmp_path/'provider.secret.json')
+    monkeypatch.setattr(provider,'LEGACY_FILE',tmp_path/'legacy.secret.json')
+    vault={}
+    monkeypatch.setattr(provider,'load_secret',lambda target:vault.get(target))
+    monkeypatch.setattr(provider,'save_secret',lambda target,key:vault.__setitem__(target,key))
+    monkeypatch.setattr(provider,'delete_secret',lambda target:vault.pop(target,None))
     db.init()
 
 @pytest.fixture
@@ -34,3 +40,8 @@ def upload_fixture(client):
         assert result.status_code==202,result.text
         return result.json()
     return upload
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        if 'engine' in item.fixturenames:item.add_marker(pytest.mark.native)

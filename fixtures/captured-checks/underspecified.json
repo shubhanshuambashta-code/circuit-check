@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "topologyComplete": true,
+  "components": [
+    {
+      "id": "documented-chip",
+      "label": "U2",
+      "ftype": "simple_chip",
+      "pinInventoryComplete": true,
+      "pinAttributesComplete": true,
+      "requiresPower": true,
+      "requiresGround": true,
+      "terminals": [
+        {
+          "key": "1",
+          "name": "1",
+          "net": null,
+          "attributes": {}
+        },
+        {
+          "key": "2",
+          "name": "GND",
+          "net": null,
+          "attributes": {}
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,9 @@ object highlighting or native engineering evidence. Source files stay untouched.
 """
 from .sexpr import parse
 
+class SourceConnectivityUnavailable(ValueError):
+    pass
+
 
 def capture_pcb(text, title='Current circuit', source_file=''):
     if len(text) > 25 * 1024 * 1024:
@@ -56,7 +59,7 @@ def capture_pcb(text, title='Current circuit', source_file=''):
                                'model': 'pcb-component', 'value': value,
                                'terminals': list(terminals.values())})
     if not components:
-        raise ValueError('No numbered electrical pads were found in the saved PCB. A circuit cannot be reconstructed from outlines or pictures alone.')
+        raise SourceConnectivityUnavailable('No numbered electrical pads were found in the saved PCB. A circuit cannot be reconstructed from outlines or pictures alone.')
     if sum(len(c['terminals']) for c in components) > 5000:
         raise ValueError('Schematic limit: 5,000 electrical pins.')
     notes = ['Read directly from the PCB already saved in this project; no new import or rerun is required.',

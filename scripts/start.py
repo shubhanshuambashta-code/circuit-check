@@ -49,16 +49,14 @@ def main():
     parser.add_argument('--service',action='store_true',help='Persist service and child logs for the background launcher')
     args=parser.parse_args()
     os.chdir(ROOT)
-    settings_file=ROOT/'data'/'runtime.json'
-    settings=json.loads(settings_file.read_text(encoding='utf-8-sig')) if settings_file.is_file() else {}
-    for key,field in [('CIRCUITCHECK_DATA','data_directory'),('KICAD_CLI','kicad_cli')]:
-        if settings.get(field):os.environ.setdefault(key,settings[field])
+    from backend.config import DATA
     url=f'http://127.0.0.1:{args.port}'
     try:
         with urllib.request.urlopen(url+'/api/health',timeout=1) as response:health=json.load(response)
         with urllib.request.urlopen(url+'/openapi.json',timeout=1) as response:info=json.load(response).get('info',{})
         version=json.loads((ROOT/'package.json').read_text(encoding='utf-8-sig'))['version']
         if health.get('status')=='ok' and health.get('deployment')=='local single-user' and info.get('title')=='CircuitCheck' and info.get('version')==version:
+            if not health.get('worker_available'):raise SystemExit('The API is running without a live worker. Use Stop CircuitCheck.cmd, then Start CircuitCheck.cmd. Run Diagnose CircuitCheck.cmd for a report.')
             print(f'CircuitCheck is already running: {url}',flush=True)
             if args.open:webbrowser.open(url)
             return

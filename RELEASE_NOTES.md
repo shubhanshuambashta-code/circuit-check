@@ -1,53 +1,20 @@
-# Updated Circuit Check local release
+# Workspace and operations update
 
-## App v0.2.1 with extension v0.6.4
+App version comes from package.json. Browser extension remains v0.6.4.
 
-- Unified local review website and extension download.
-- Circuit-aware Groq assistant with revision-scoped evidence, citations and honest fallback when no key is available.
-- Automatic schematics from available captured connections, including open and unfinished circuits.
-- Plain-language finding explanations and possible consequences.
-- Overall health score removed from the app and extension.
-- Extension includes live Tinkercad/Wokwi readers and supported import adapters for other simulators.
-- Complete app ZIP includes the compiled frontend; dependencies and KiCad are installed separately.
+- Integrated local @tscircuit/checks 0.0.279 with a validated, source-preserving Circuit JSON adapter and five selectively eligible connectivity/pin-specification checks.
+- Added captured JSON uploads, engine-labelled findings, retained checker evidence, reliable reconstructed-component selection and explicit evaluated/skipped/unsupported/failed coverage.
+- Retained native KiCad DRC/ERC authority, original source files and no-key operation. Unknown electrical facts and physical geometry are not inferred.
+- Pinned runtime dependencies, retained the upstream MIT notice, added four captured fixtures, 13 JavaScript tests and 10 Python integration tests, and documented metadata requirements and limitations.
 
-Verification before publication: 67 local backend tests, including native KiCad checks, and 135 extension tests passed during development. Browser checks confirmed evidence citations, history, missing-net limitations, removal of scoring and the extension download. A live Groq completion has not been tested because no API key is configured; provider behavior was tested with controlled responses. Public Pages is a recorded preview, not a hosted KiCad backend.
+- Moved extension downloads into Tools and established the upload → analysis → findings → correction → comparison flow.
+- Added component/net search, linked native component selection, Previous/Next issue, saved filters and direct evidence/location links.
+- Added guided diagnostics, a standalone Windows diagnostic command and downloadable reports.
+- Added frequent worker heartbeats, cancellation, explicit fresh retries, attempt isolation and publication fencing.
+- Added OS credential storage with verified legacy-key migration and consistent configured-data handling.
+- Added project backup/restore and reviewable generated-preview cleanup.
+- Extracted workspace data and operations components, removed unbounded frontend `any` handling and generated service contracts from FastAPI.
+- Added PR regression checks, a separate native KiCad job, and deterministic release packaging with checksums.
 
-# CircuitCheck 0.2.1
+README.md and VERIFICATION.md describe current support and supersede the older unsupported-feature lists. GitHub workflows are staged locally and require a repository commit before they can run remotely.
 
-CircuitCheck now centres review around native engineering evidence and revision comparison. The public website and local application share the same responsive interface.
-
-## Review a board
-
-Upload the complete KiCad project. Select a finding to locate UUID-resolved tracks, component/pad envelopes or native reported positions. Select an affected object to isolate it, or highlight its stored net. Missing or ambiguous mappings stay explicitly unavailable. Schematic cross-probing requires unambiguous matching references/pads.
-
-The inspector separates evidence, engineering review and optional explanation. Native checks establish the findings. AI explains selected evidence and cannot establish new violations or execute edits. Confirmed violations, review suggestions and potential concerns remain distinct. Native severity and native exclusions remain visible.
-
-Coverage distinguishes checked with findings, checked with no findings, partial, failed and not checked. It shows missing dependencies, ignored rule categories and unevaluated ratings, thermal/current, simulation and physical assembly checks. There is no safety percentage. Provenance includes source/rules/profile hashes and engineering, adapter, normalization, geometry and explanation-engine identifiers.
-
-## Review a schematic
-
-Select **Schematic** beside **Board**. Complete uploaded schematics are exported by KiCad, checked with ERC and supplied with a native netlist. The sheet selector follows native page numbers and hierarchy identities. Selecting an electrical finding opens its matching sheet and highlights UUID-resolved source objects or reported pin coordinates. Symbol highlights are labelled anchors rather than inferred body outlines. Unavailable mappings are explicit. Matching component/pad references can cross-probe to the board.
-
-Revision comparison also offers native schematic views. The recorded website includes a real unconnected R1 pin in revision A and the checked connection in revision B. Live uploads and editing require the local app; general schematic edits remain in KiCad. Coverage lists disabled native ERC checks rather than presenting them as passed.
-
-## Compare revisions
-
-Use **Upload revision B** in the existing project. Select revisions A and B to inspect resolved, remaining and new findings, changed components, physical routing and pad net assignments. Both board views use aligned coordinates for the selected change. Comments and accepted exceptions remain attached to stable findings; exceptions require re-review when evidence, engine, rules or profile changes.
-
-Different rules, profile, engine, coverage or unstable source object IDs prevent a disappearance from becoming a verified fix. Physical geometry comparisons do not infer circuit intent or prove logical equivalence. Rewritten UUIDs appear as added/removed objects.
-
-## Select fabrication constraints
-
-The included `PCBWAY-STANDARD-BASELINE` is a dated, scoped snapshot linked to its published source. Other manufacturers can be represented by imported JSON, custom numeric limits, or native `.kicad_dru` code included in a complete project ZIP. Order references are metadata, not authenticated manufacturer lookups. Unknown codes without constraints remain not checked.
-
-A second independent native DRC pass evaluates selected fabrication constraints in a disposable copy. Original project rules are checked independently, and originals are preserved. This is a constraint subset, not comprehensive fabrication approval.
-
-## Apply a supported correction
-
-For an eligible straight track-width finding: create a proposed copy, reopen it with KiCad, review the recheck and all new findings, explicitly approve the exact change, apply it as a revision, run fresh checks, and download the native project. Cancel returns without applying. Other findings provide a manual KiCad action and revision-upload path.
-
-## Website and local application
-
-The website offers a labelled interactive recording with real native results, object highlights, review history, revision comparisons, reports and native example downloads. It does not execute live checks or edits. The local application provides live uploads, native analysis, persistent reviews, fabrication profiles and approved changes.
-
-Existing local data is retained. Older saved reports request a recheck before showing new evidence categories and detailed coverage. KiCad 10.0.7 on Windows was exercised; supplied Linux/macOS setup and live external AI calls were not newly verified.

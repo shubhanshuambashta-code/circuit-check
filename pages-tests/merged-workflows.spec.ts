@@ -11,6 +11,7 @@ test('merged workspace keeps 3D, assistant, original schematics and extension do
  await expect(page.getByRole('button',{name:'Schematic',exact:true})).toHaveAttribute('aria-pressed','true');
  await page.getByRole('button',{name:'Circuit assistant',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Circuit assistant',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Tools',exact:true}).click();
  const download=page.getByRole('link',{name:'Download extension ZIP',exact:true});
  const href=await download.getAttribute('href');
  expect(href).toContain('/circuit-check/downloads/Circuit-Check-Multi-platform-v0.6.4.zip');

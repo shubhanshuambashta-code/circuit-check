@@ -10,6 +10,7 @@ import subprocess
 import time
 from defusedxml import ElementTree as ET
 from .config import ENGINE_TIMEOUT, PINNED_ENGINE
+from .job_runtime import checkpoint,AnalysisCancelled
 from .sexpr import tracks, parse, number
 from .storage import fingerprint
 from .limits import unix_limits,windows_job
@@ -28,6 +29,7 @@ def executable():
     return None
 
 def run(args, cwd: Path, output: Path, timeout=ENGINE_TIMEOUT):
+    checkpoint()
     output.parent.mkdir(parents=True,exist_ok=True)
     env=os.environ.copy()
     # AI credentials have no reason to be in the checker's environment.
@@ -44,13 +46,26 @@ def run(args, cwd: Path, output: Path, timeout=ENGINE_TIMEOUT):
         try:
             proc=subprocess.Popen([str(x) for x in args],cwd=cwd,env=env,stdout=log,stderr=subprocess.STDOUT,shell=False,
                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0,
-                                  preexec_fn=unix_limits if os.name!='nt' else None)
+                                  preexec_fn=unix_limits if os.name!='nt' else None,start_new_session=os.name!='nt')
             close_job=None
             try:
                 close_job=windows_job(proc)
-                code=proc.wait(timeout=timeout)
+                deadline=time.monotonic()+timeout
+                while True:
+                    checkpoint()
+                    remaining=deadline-time.monotonic()
+                    if remaining<=0:raise subprocess.TimeoutExpired(args,timeout)
+                    try:code=proc.wait(timeout=min(.25,remaining));break
+                    except subprocess.TimeoutExpired:pass
+            except AnalysisCancelled:
+                if os.name!='nt':
+                    import signal
+                    try:os.killpg(proc.pid,signal.SIGKILL)
+                    except ProcessLookupError:pass
+                else:proc.kill()
+                proc.wait();raise
             except subprocess.TimeoutExpired:
-                proc.kill(); proc.wait()
+                proc.kill();proc.wait()
                 raise EngineError(f'KiCad exceeded the {timeout} second execution limit. See the retained log.')
             except OSError:
                 proc.kill();proc.wait();raise

@@ -56,7 +56,7 @@ def apply(project_id,repair_id):
     now=time.time(); job=str(uuid4())
     # Invalidate before publishing the new current revision / queued job, avoiding
     # a worker race with the candidate validation cache.
-    cache=store.revision(project_id,candidate['id'])/'artifacts'/'result.json'
+    cache=store.artifacts(project_id,candidate['id'],result)/'result.json'
     cache.unlink(missing_ok=True)
     with db.connect() as c:
         c.execute('BEGIN IMMEDIATE')

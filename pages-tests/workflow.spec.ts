@@ -42,6 +42,7 @@ test('revision 3D marks moved components and links camera orbit and zoom',async(
  for(const model of await models.all())await expect.poll(()=>model.evaluate((el:any)=>el.loaded)).toBe(true);
  await expect(page.locator('[data-component-label=R2][data-change=modified]')).toHaveCount(2);
  await expect(page.locator('.comparison-movement')).toContainText('R2: moved 2.00 mm');
+ await models.first().scrollIntoViewIfNeeded();
  const initial=await models.first().evaluate((el:any)=>el.getCameraOrbit().theta);
  const rect=await models.first().boundingBox();expect(rect).not.toBeNull();
  await page.mouse.move(rect!.x+rect!.width*.75,rect!.y+rect!.height*.2);

@@ -12,20 +12,21 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field, ConfigDict
 from . import db, repairs
-from .config import ROOT,MAX_UPLOAD
+from .config import ROOT,MAX_UPLOAD,APP_VERSION
 from .storage import LocalStorage,fingerprint
 from .uploads import unpack,inspect,safe_path
 from .engine import executable,compare
 from .ai import explain
 from .review import attach_reviews,annotation_scope
 from .profiles import PRESETS,validate_profile
+from .contracts import Health,Job,QueuedJob,ProviderStatus,RestoredProject,CleanupPlan,CleanupResult
 
 @asynccontextmanager
 async def lifespan(app):
     db.init()
     yield
 
-app=FastAPI(title='CircuitCheck',version='0.2.1',lifespan=lifespan)
+app=FastAPI(title='CircuitCheck',version=APP_VERSION,lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=['127.0.0.1','localhost','testserver','[::1]'])
 
 @app.middleware('http')
@@ -51,14 +52,16 @@ def require(table,id):
     if not r: raise HTTPException(404,'Not found')
     return r
 
-def queue(project_id,revision_id):
+def queue(project_id,revision_id,fresh=False):
     now=time.time(); id=str(uuid4())
     with db.connect() as c:
-        if c.execute("SELECT count(*) FROM jobs WHERE status IN ('queued','running')").fetchone()[0]>=20:
+        c.execute('BEGIN IMMEDIATE')
+        if c.execute("SELECT count(*) FROM jobs WHERE status IN ('queued','running','cancelling')").fetchone()[0]>=20:
             raise ValueError('Analysis queue is full. Wait for current jobs to finish.')
-        active=c.execute("SELECT id FROM jobs WHERE revision_id=? AND status IN ('queued','running')",(revision_id,)).fetchone()
+        active=c.execute("SELECT id FROM jobs WHERE revision_id=? AND status IN ('queued','running','cancelling')",(revision_id,)).fetchone()
         if active: return active['id']
         c.execute('INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?)',(id,project_id,revision_id,'queued','Waiting for analysis worker',None,now,now))
+        c.execute('INSERT INTO job_control(job_id,fresh) VALUES(?,?)',(id,int(fresh)))
     return id
 
 def create_project(files,example=False):
@@ -80,15 +83,65 @@ def create_project(files,example=False):
         store.delete(id)
         raise
 
-@app.get('/api/health')
+@app.get('/api/health',response_model=Health)
 def health():
+    db.recover()
     import os
     from .assistant_provider import status
-    return {'status':'ok','engine_available':bool(executable()),'ai_available':status()['configured'],'tested_engine':'10.0.7','deployment':'local single-user'}
+    return {'status':'ok','worker_available':db.worker_status()['available'],'worker':db.worker_status(),'engine_available':bool(executable()),'ai_available':status()['configured'],'tested_engine':'10.0.7','deployment':'local single-user'}
+
+from .diagnostics import collect as collect_diagnostics,Diagnostics
+
+@app.get('/api/diagnostics',response_model=Diagnostics)
+def diagnostics():return collect_diagnostics()
+
+@app.get('/api/diagnostics/download')
+def diagnostics_download():
+    return JSONResponse(collect_diagnostics().model_dump(),headers={'Content-Disposition':'attachment; filename="circuitcheck-diagnostics.json"'})
+
+@app.post('/api/jobs/{id}/cancel',response_model=Job)
+def cancel_job(id):
+    require('jobs',id)
+    return db.cancel(id)
+
+@app.post('/api/jobs/{id}/retry',status_code=202,response_model=QueuedJob)
+def retry_job(id):
+    previous=require('jobs',id)
+    if previous['status'] not in ('failed','cancelled'):raise ValueError('Retry is available after a failed or cancelled attempt. Cancel active work first.')
+    return {'job_id':queue(previous['project_id'],previous['revision_id'],fresh=True),'previous_job_id':id}
+
+@app.get('/api/projects/{id}/backup')
+def backup_project(id):
+    from .backups import export_project
+    require('projects',id)
+    return StreamingResponse(export_project(id),media_type='application/zip',headers={'Content-Disposition':f'attachment; filename="circuitcheck-{id[:8]}-backup.zip"'})
+
+@app.post('/api/backups/restore',status_code=201,response_model=RestoredProject)
+async def restore_backup(file:UploadFile=File(...)):
+    from .backups import restore_project
+    blob=await file.read(MAX_UPLOAD+1)
+    try:result=restore_project(blob)
+    except (KeyError,TypeError,OSError,json.JSONDecodeError):raise ValueError('Backup metadata is incomplete or invalid. No existing project was changed.') from None
+    try:result['job_id']=queue(result['project_id'],result['revision_id'],fresh=True)
+    except ValueError:result['job_id']=None
+    return result
+
+@app.get('/api/projects/{id}/previews/cleanup',response_model=CleanupPlan)
+def preview_cleanup_plan(id):
+    from .backups import preview_files
+    require('projects',id);files=preview_files(id)
+    return {'files':len(files),'bytes':sum(p.stat().st_size for p in files)}
+
+@app.post('/api/projects/{id}/previews/cleanup',response_model=CleanupResult)
+def preview_cleanup(id):
+    from .backups import cleanup_previews
+    require('projects',id)
+    return cleanup_previews(id)
 
 @app.get('/api/capabilities')
 def capabilities():
     return {'formats':[
+        {'format':'Circuit Check captured JSON','extensions':['.json'],'read':True,'preview':'Reconstructed connection schematic only','electrical':'Explicit required-pin and pin-specification subset of @tscircuit/checks','manufacturing':False,'edit':False,'native_export':'Unmodified captured originals','conversion':False},
         {'format':'KiCad PCB','extensions':['.kicad_pcb'],'read':True,'preview':True,'electrical':'Connectivity DRC; no functional simulation','manufacturing':'Project DRC','edit':'Selected straight track width only','native_export':True,'conversion':False},
         {'format':'KiCad schematic','extensions':['.kicad_sch'],'read':True,'preview':True,'electrical':'ERC and netlist','manufacturing':False,'edit':False,'native_export':'Unmodified originals','conversion':False},
         {'format':'KiCad project / ZIP','extensions':['.kicad_pro','.zip'],'read':True,'preview':'Contained native designs','electrical':'Contained designs','manufacturing':'Contained boards','edit':'Supported PCB operation only','native_export':True,'conversion':False},
@@ -116,6 +169,7 @@ def sample():
 
 @app.get('/api/projects/{id}')
 def project(id):
+    db.recover()
     p=require('projects',id)
     with db.connect() as c:
         revisions=[dict(x) for x in c.execute('SELECT id,parent_id,hash,created FROM revisions WHERE project_id=? ORDER BY created',(id,))]
@@ -136,13 +190,15 @@ def select_root(id,body:RootSelection):
         c.execute('UPDATE projects SET name=? WHERE id=?',(Path(body.root).name,id))
     return {'job_id':queue(id,rev['id'])}
 
-@app.post('/api/projects/{id}/analyze',status_code=202)
+@app.post('/api/projects/{id}/analyze',status_code=202,response_model=QueuedJob)
 def analyze(id):
     p=require('projects',id)
     return {'job_id':queue(id,p['current_revision'])}
 
-@app.get('/api/jobs/{id}')
-def job(id): return require('jobs',id)
+@app.get('/api/jobs/{id}',response_model=Job)
+def job(id):
+    db.recover()
+    return require('jobs',id)
 
 @app.get('/api/projects/{id}/revisions/{rid}')
 def revision(id,rid):
@@ -156,7 +212,7 @@ def revision(id,rid):
 def artifact(id,rid,name):
     r=require('revisions',rid)
     if r['project_id']!=id: raise HTTPException(404,'Not found')
-    root=LocalStorage().revision(id,rid)/'artifacts'
+    root=LocalStorage().artifacts(id,rid,db.decode(r['result']))
     path=root.joinpath(*safe_path(name).parts).resolve()
     if root.resolve() not in path.parents or not path.is_file() or path.suffix not in ('.svg','.json','.log','.xml','.glb'): raise HTTPException(404,'Artifact not found')
     return FileResponse(path)
@@ -170,6 +226,12 @@ def schematic_source(id,rid):
     manifest=db.decode(r['manifest'])
     if manifest.get('requires_selection') or not manifest.get('root'):
         raise ValueError('Choose the circuit project root before generating its schematic.')
+    if manifest.get('source_format')=='circuitcheck-capture':
+        from .captured import read_capture
+        directory=LocalStorage().revision(id,rid)/'source'
+        capture=read_capture(directory.joinpath(*safe_path(manifest['capture_path']).parts))
+        if any('net' not in pin for component in capture['components'] for pin in component['terminals']):raise ValueError('Some captured net assignments are unknown. A reliable reconstructed connection drawing is unavailable; missing wiring is not inferred.')
+        return {**capture,'projectId':id,'revisionId':rid,'sourceHash':r['hash']}
     relative=safe_path(manifest['root']+'.kicad_pcb')
     directory=(LocalStorage().revision(id,rid)/'source').resolve()
     path=directory.joinpath(*relative.parts).resolve()
@@ -221,15 +283,15 @@ def assistant_context(id,rid=None,question='',finding_id=None):
     folder=LocalStorage().revision(id,r['id'])
     with db.connect() as c:
         job=c.execute('SELECT status FROM jobs WHERE project_id=? AND revision_id=? ORDER BY created DESC LIMIT 1',(id,r['id'])).fetchone()
-    context=build_context(p,{**r,'manifest':manifest,'result':result},folder/'source',folder/'artifacts',question,finding_id,job['status'] if job else None)
+    context=build_context(p,{**r,'manifest':manifest,'result':result},folder/'source',LocalStorage().artifacts(p['id'],r['id'],result),question,finding_id,job['status'] if job else None)
     return p,r,context
 
-@app.get('/api/assistant/provider')
+@app.get('/api/assistant/provider',response_model=ProviderStatus)
 def assistant_provider():
     from .assistant_provider import status
     return status()
 
-@app.post('/api/assistant/provider')
+@app.post('/api/assistant/provider',response_model=ProviderStatus)
 async def configure_assistant_provider(body:dict):
     from .assistant_provider import connect_groq
     if set(body)!={'key'}:raise ValueError('Provide only a Groq API key. Provider URLs and arbitrary settings cannot be changed here.')
@@ -294,14 +356,15 @@ def report(id):
 def delete(id):
     require('projects',id)
     with db.connect() as c:
-        if c.execute("SELECT id FROM jobs WHERE project_id=? AND status IN ('queued','running')",(id,)).fetchone(): raise ValueError('Wait for the active job to finish before deleting the project')
+        if c.execute("SELECT id FROM jobs WHERE project_id=? AND status IN ('queued','running','cancelling')",(id,)).fetchone(): raise ValueError('Wait for the active job to finish before deleting the project')
+        job_ids=[row['id'] for row in c.execute('SELECT id FROM jobs WHERE project_id=?',(id,))]
         c.execute('DELETE FROM projects WHERE id=?',(id,))
-    LocalStorage().delete(id)
+    LocalStorage().delete(id,job_ids=job_ids)
     return {'deleted':True}
 
 def ensure_idle(id):
     with db.connect() as c:
-        if c.execute("SELECT 1 FROM jobs WHERE project_id=? AND status IN ('queued','running')",(id,)).fetchone():raise ValueError('Wait for the current check to finish before creating a revision')
+        if c.execute("SELECT 1 FROM jobs WHERE project_id=? AND status IN ('queued','running','cancelling')",(id,)).fetchone():raise ValueError('Wait for the current check to finish before creating a revision')
 
 def save_revision(id,parent_id,source,rid,manifest):
     now=time.time();job_id=str(uuid4())
@@ -343,6 +406,7 @@ class ProfileSelection(BaseModel):
 @app.post('/api/projects/{id}/rule-profile',status_code=202)
 def select_profile(id,body:ProfileSelection):
     p=require('projects',id);ensure_idle(id);base=require('revisions',p['current_revision'])
+    if db.decode(base['manifest']).get('source_format')=='circuitcheck-capture':raise ValueError('Fabrication profiles require native KiCad geometry; captured JSON has no manufacturing checks.')
     if body.profile is not None:profile=validate_profile({**body.profile,'order_reference':body.order_reference})
     elif body.code=='project':profile=None
     else:

@@ -15,6 +15,7 @@ const groups=[
  [['pin_to_pin','pin_to_pin_warning','power_pin_not_driven','pin_not_driven','multiple_net_names'], 'The schematic pin types or signal naming need review.', 'A supply may not be driven, outputs may conflict, or the intended signal connection may be unclear. The message is a design-rule observation, not a simulation of the circuit.', 'Review the named pins and their intended roles against the actual component data.']
 ];
 export function explainConsequence(finding={}) {
+ if(finding.source==='@tscircuit/checks')return {meaning:finding.explanation||finding.evidence,consequence:'This finding concerns the explicitly captured specification or connection data. A physical or functional failure has not been established by this check.',action:finding.suggestion,uncertain:true};
  const rule=String(finding.rule||'');let group=groups.find(g=>g[0].includes(rule));
  if(!group&&/^short-/.test(finding.id||''))group=groups[0];
  if(rule==='native')return {meaning:'The simulator reported a problem with this component.',consequence:'The component may not behave as intended. The simulator’s own message is the evidence; this helper does not establish an additional diagnosis.',action:finding.fix||'Review the simulator message, repair the indicated cause and restart the simulation.',uncertain:false};

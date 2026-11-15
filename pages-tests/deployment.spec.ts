@@ -1,38 +1,37 @@
 import {test,expect} from '@playwright/test';
-test('recorded website exposes revision changes, exact objects, coverage and local setup honestly',async({page})=>{
+
+test('recorded review navigation, search, filters and comparison',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('./');
- await page.getByRole('button',{name:'Revision comparison',exact:true}).click();
  await expect(page.getByText('Interactive recorded example',{exact:true})).toBeVisible();
+ await expect(page.locator('.r2-workspace')).toBeVisible();
+ await expect(page.locator('.cc-extension')).toHaveCount(0);
+ const search=page.getByRole('combobox',{name:'Find component or net'});
+ for(const name of ['R1','U1','GND']){
+  await page.getByRole('button',{name:'Board',exact:true}).click();await search.fill(name);await search.press('Enter');
+  await expect(page.locator('.board-svg [data-highlight-status=selected]').first()).toBeVisible();
+  if(name!=='GND'){
+   await page.getByRole('button',{name:'Schematic',exact:true}).click();
+   await expect(page.locator('.schematic-canvas [data-highlight-status=selected]').first()).toBeVisible();
+  }
+ }
+ await page.getByRole('button',{name:'Clear component or net search'}).click();
+ await page.getByRole('button',{name:'Next issue',exact:true}).click();
+ await expect(page.locator('.r2-review-navigation')).toContainText('Issue 2');
+ await page.getByRole('button',{name:'Previous issue',exact:true}).click();
+ await expect(page.locator('.r2-review-navigation')).toContainText('Issue 1');
+ await page.getByLabel('Search findings',{exact:true}).fill('GND');
+ await page.getByRole('button',{name:'Save current filters',exact:true}).click();
+ await page.getByLabel('Filter name',{exact:true}).fill('Ground review');await page.getByRole('button',{name:'Save filter',exact:true}).click();
+ await page.reload();await page.getByLabel('Saved filters',{exact:true}).selectOption('Ground review');
+ await expect(page.getByLabel('Search findings',{exact:true})).toHaveValue('GND');
+ await page.getByRole('button',{name:'Reset filters',exact:true}).click();
+ await page.getByRole('button',{name:'Revision comparison',exact:true}).click();
  await expect(page.locator('.r2-comparison-boards .board-svg')).toHaveCount(2);
  await expect(page.locator('.r2-comparison-scope')).toContainText('Comparable engineering checks');
- await page.locator('.r2-change-groups').getByRole('button',{name:/Changed components/}).click();
- await page.locator('.r2-change-list>button').first().click();
- await expect(page.locator('[data-highlight-status=selected]').first()).toBeVisible();
- const leftView=await page.locator('.r2-comparison-board .board-svg').first().getAttribute('viewBox'); await expect(page.locator('.r2-comparison-board .board-svg').last()).toHaveAttribute('viewBox',leftView!); await page.screenshot({path:'screenshots/review-v2-website.png',fullPage:true});
- await page.locator('.r2-change-groups').getByRole('button',{name:/^Resolved/}).click();
- await page.locator('.r2-change-list>button').filter({hasText:'Pin is not connected'}).click();
- await expect(page.getByRole('button',{name:'Schematic',exact:true})).toHaveAttribute('aria-pressed','true');
- await expect(page.locator('.r2-comparison-boards .schematic-canvas image')).toHaveCount(2);
- await expect(page.locator('.r2-comparison-boards [data-highlight-status=selected] circle').first()).toHaveAttribute('cx','50.8');
- await page.screenshot({path:'screenshots/review-v2-schematic-comparison.png',fullPage:true});
- await page.getByRole('button',{name:'Design review',exact:true}).click();
- await page.locator('.r2-issue').first().click();
- expect(await page.locator('.r2-board [data-highlight-status=selected]').count()).toBeGreaterThan(0);
- await page.getByRole('button',{name:'Schematic',exact:true}).click();
- await expect(page.getByLabel('Schematic sheet')).toContainText('/');
- await expect(page.locator('.schematic-canvas image')).toHaveAttribute('href',/schematic/);
- await expect(page.locator('.schematic-canvas [data-highlight-status=selected]')).not.toHaveCount(0);
- await page.screenshot({path:'screenshots/review-v2-schematic-website.png',fullPage:true});
- await page.getByRole('button',{name:'Board',exact:true}).click();
- await page.getByRole('button',{name:'Check coverage',exact:true}).click();
- await expect(page.getByRole('row').filter({hasText:'Component voltage / power ratings'})).toContainText('not checked');
- await page.getByRole('button',{name:'Upload revision B',exact:true}).first().click();
- await expect(page.getByRole('dialog')).toContainText('Live uploads, checks, review notes and approved edits run in the local application.');
- await page.keyboard.press('Escape');
- await page.getByRole('button',{name:'Download',exact:true}).click();
- const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'Current native project',exact:true}).click();
- expect((await downloaded).suggestedFilename()).toBe('revision-b.zip');
+ await page.getByRole('button',{name:'Tools',exact:true}).click();
+ await expect(page.locator('.cc-extension')).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Setup & diagnostics',exact:true})).toBeVisible();
  for(const width of [1440,1024,768,390,360]){await page.setViewportSize({width,height:1000});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);}
  expect(errors).toEqual([]);
 });

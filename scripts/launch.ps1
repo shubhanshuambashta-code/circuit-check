@@ -34,7 +34,7 @@ function Test-CircuitCheck {
     try {
         $health = Invoke-RestMethod -Uri "$url/api/health" -TimeoutSec 2
         $info = Invoke-RestMethod -Uri "$url/openapi.json" -TimeoutSec 2
-        return ($health.status -eq 'ok' -and $health.deployment -eq 'local single-user' -and $info.info.title -eq 'CircuitCheck' -and $info.info.version -eq $version)
+        return ($health.status -eq 'ok' -and $health.worker_available -eq $true -and $health.deployment -eq 'local single-user' -and $info.info.title -eq 'CircuitCheck' -and $info.info.version -eq $version)
     } catch { return $false }
 }
 if (-not (Test-CircuitCheck)) {

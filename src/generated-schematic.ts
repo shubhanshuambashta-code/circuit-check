@@ -1,3 +1,4 @@
+import type {DesignTarget} from './design-search';
 export interface SchematicPin {name:string;net:string|null}
 export interface SchematicPart {id:string;label:string;model:string;value:string;pins:SchematicPin[]}
 export interface SchematicSource {title:string;source:string;parts:SchematicPart[];notes:string[]}
@@ -64,7 +65,7 @@ export function importSchematicSource(input:unknown):SchematicSource {
 }
 const escape=(s:unknown)=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]!));
 const short=(s:string,n=25)=>s.length>n?s.slice(0,n-1)+'…':s;
-export function renderSchematic(source:SchematicSource):{svg:string;netlist:string;partCount:number;netCount:number;pinCount:number;openPinCount:number;singlePinNetCount:number;openPins:{component:string;label:string;pin:string;pinIndex:number}[]} {
+export function renderSchematic(source:SchematicSource,selection?:DesignTarget):{svg:string;netlist:string;partCount:number;netCount:number;pinCount:number;openPinCount:number;singlePinNetCount:number;openPins:{component:string;label:string;pin:string;pinIndex:number}[]} {
  bounded(source);
  const netNames=[...new Set(source.parts.flatMap(p=>p.pins.flatMap(pin=>pin.net===null?[]:[pin.net])))].sort();
  const labels=new Map(netNames.map((name,i)=>[name,'N'+(i+1)])),width=1680;let y=130;const symbols:string[]=[];
@@ -73,6 +74,7 @@ export function renderSchematic(source:SchematicSource):{svg:string;netlist:stri
  for(let i=0;i<source.parts.length;i+=3){const parts=source.parts.slice(i,i+3),height=Math.max(...parts.map(p=>Math.max(140,100+Math.ceil(p.pins.length/2)*28)));
   for(let col=0;col<parts.length;col++){
    const part=parts[col],x=col*550+30,cy=y+92;
+   const selected=selection?.kind==='component'&&(selection.sourceIds?selection.sourceIds.includes(part.id):part.label===selection.name);
    const anode=part.pins.find(p=>/^(A|anode)$/i.test(p.name)),cathode=part.pins.find(p=>/^(C|K|cathode)$/i.test(p.name));
    const led=/^(wokwi-led|led2?|led_(red|green|blue|yellow|orange|white))$/i.test(part.model)&&anode&&cathode&&part.pins.length===2;
    const resistor=/^(wokwi-resistor|resistor)$/i.test(part.model)&&part.pins.length===2;
@@ -82,12 +84,14 @@ export function renderSchematic(source:SchematicSource):{svg:string;netlist:stri
    else if(led){body+=line(x+165,cy,x+345,cy)+`<path d="M${x+240} ${cy-16}l28 16 -28 16zM${x+268} ${cy-18}v36M${x+270} ${cy-25}l18 -18m-9 0h9v9M${x+287} ${cy-14}l18 -18m-9 0h9v9" fill="none"/>`;}
    else body+=`<rect x="${x+165}" y="${y+58}" width="180" height="${height-80}" rx="3" fill="#f7faf9"/>`;
    if(!pins.length)body+=t(x+255,y+98,'No captured pins',12,'text-anchor="middle"');
-   pins.forEach((p,index)=>{const right=index%2===1,py=y+92+Math.floor(index/2)*28,start=right?x+345:x+80,end=right?x+430:x+165,label=right?x+435:x+75;
+   pins.forEach((p,index)=>{const pinSelected=selection?.kind==='net'&&p.net===selection.name;const bodyStart=body.length;const right=index%2===1,py=y+92+Math.floor(index/2)*28,start=right?x+345:x+80,end=right?x+430:x+165,label=right?x+435:x+75;
     body+=line(start,py,end,py)+t(right?x+337:x+173,py-7,short(p.name,18),12,`text-anchor="${right?'end':'start'}"`);
     if(p.net===null)body+=`<path d="M${right?end-4:start-4} ${py-4}l8 8m-8 0l8 -8" stroke="#a34d25"/>`+t(label,py+5,'open',12,`fill="#a34d25" text-anchor="${right?'start':'end'}"`);
     else body+=t(label,py+5,labels.get(p.net)!,14,`fill="#007c6c" font-weight="700" text-anchor="${right?'start':'end'}"`);
+    if(pinSelected)body=body.slice(0,bodyStart)+`<g data-search-selected="true" data-net="${escape(p.net!)}"><rect x="${start-8}" y="${py-15}" width="${end-start+100}" height="30" rx="4" fill="#fff0ba" stroke="#996100"/>`+body.slice(bodyStart)+'</g>';
    });
-   symbols.push(`<g data-component="${escape(part.id)}"><title>${escape(part.label+' — '+part.model)}</title>${body}</g>`);
+   if(selected)body=`<rect x="${x+5}" y="${y-8}" width="505" height="${height+12}" rx="8" fill="#fff7d6" stroke="#996100" stroke-width="3"/>`+body;
+   symbols.push(`<g data-component="${escape(part.id)}" data-search-selected="${selected}"><title>${escape(part.label+' — '+part.model)}</title>${body}</g>`);
   }y+=height+30;
  }
  const legendStart=y+20;const legend=netNames.map((name,i)=>t(40+(i%3)*550,legendStart+35+Math.floor(i/3)*26,labels.get(name)+' = '+short(name,54),12));
